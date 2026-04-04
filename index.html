@@ -2,35 +2,625 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Nutrition Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Fuel</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-950 text-white min-h-screen flex items-center justify-center">
-  <div id="root"></div>
-
-  <script type="text/babel">
-    function App() {
-      const [tapped, setTapped] = React.useState(false);
-
-      return (
-        <div className="text-center px-8">
-          <h1 className="text-3xl font-bold mb-2">Nutrition Tracker</h1>
-          <p className="text-gray-400 mb-8">Smoke test — if you can see this on your iPhone, we're good to go 🚀</p>
-          <button
-            onClick={() => setTapped(true)}
-            className="bg-green-500 hover:bg-green-400 text-white font-semibold px-6 py-3 rounded-xl text-lg active:scale-95 transition-transform"
-          >
-            {tapped ? "✅ It's working!" : "Tap me"}
-          </button>
-        </div>
-      );
+  <style>
+    :root {
+      --bg: #0f0f0f;
+      --surface: #1a1a1a;
+      --surface2: #242424;
+      --border: #2e2e2e;
+      --text: #f0f0f0;
+      --text-muted: #666;
+      --text-dim: #999;
+      --green: #b6f36a;
+      --red: #ff6b6b;
+      --amber: #ffc94d;
+      --blue: #6ab8f3;
+      --font: 'DM Sans', sans-serif;
+      --mono: 'DM Mono', monospace;
+      --radius: 14px;
+      --tab-height: 64px;
     }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); }
+    #root { height: 100%; display: flex; flex-direction: column; }
+    button { font-family: var(--font); cursor: pointer; border: none; background: none; color: inherit; }
+    input, select { font-family: var(--font); }
+    ::-webkit-scrollbar { display: none; }
 
-    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
-  </script>
+    .app { display: flex; flex-direction: column; height: 100%; max-width: 480px; margin: 0 auto; width: 100%; }
+
+    .tabs { display: flex; background: var(--surface); border-top: 1px solid var(--border); height: var(--tab-height); padding-bottom: env(safe-area-inset-bottom); flex-shrink: 0; position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; z-index: 100; }
+    .tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 10px; font-weight: 500; color: var(--text-muted); letter-spacing: 0.04em; text-transform: uppercase; transition: color 0.15s; padding-top: 6px; }
+    .tab.active { color: var(--green); }
+    .tab-icon { font-size: 20px; line-height: 1; }
+
+    .screen { flex: 1; overflow-y: auto; padding: 20px 16px calc(var(--tab-height) + 24px); }
+    .screen-title { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 20px; }
+    .section-label { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px; margin-top: 24px; }
+
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 10px; }
+
+    .progress-wrap { margin-bottom: 16px; }
+    .progress-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+    .progress-label { font-size: 13px; font-weight: 600; }
+    .progress-value { font-size: 13px; font-family: var(--mono); color: var(--text-dim); }
+    .progress-track { height: 8px; background: var(--surface2); border-radius: 99px; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 99px; transition: width 0.4s cubic-bezier(.4,0,.2,1); }
+    .progress-fill.cal { background: var(--amber); }
+    .progress-fill.pro { background: var(--blue); }
+    .progress-fill.over { background: var(--red); }
+
+    .log-entry { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 8px; overflow: hidden; }
+    .log-entry-main { display: flex; align-items: center; padding: 12px 14px; gap: 10px; }
+    .log-entry-name { flex: 1; font-size: 15px; font-weight: 500; }
+    .log-entry-macros { font-size: 12px; font-family: var(--mono); color: var(--text-dim); text-align: right; line-height: 1.6; }
+    .log-entry-expand { font-size: 11px; color: var(--text-muted); padding: 0 14px 10px; }
+    .log-entry-ingredient { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-dim); padding: 2px 0; }
+    .log-entry-delete { color: var(--text-muted); font-size: 18px; padding: 4px; }
+
+    .field { margin-bottom: 14px; }
+    .field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 6px; }
+    .input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 11px 14px; color: var(--text); font-size: 15px; outline: none; transition: border-color 0.15s; }
+    .input:focus { border-color: var(--green); }
+    select.input { appearance: none; }
+    .input-row { display: flex; gap: 8px; }
+    .input-row .field { flex: 1; }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: 10px; font-size: 15px; font-weight: 600; padding: 12px 18px; transition: opacity 0.15s, transform 0.1s; }
+    .btn:active { transform: scale(0.97); opacity: 0.85; }
+    .btn-primary { background: var(--green); color: #0f0f0f; width: 100%; }
+    .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-danger { background: transparent; color: var(--red); border: 1px solid var(--red); }
+    .btn-sm { padding: 7px 12px; font-size: 13px; border-radius: 8px; }
+    .btn-ghost { color: var(--green); font-size: 14px; font-weight: 600; padding: 4px 0; }
+
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 200; display: flex; align-items: flex-end; justify-content: center; }
+    .modal { background: var(--surface); border-radius: 20px 20px 0 0; padding: 24px 20px calc(24px + env(safe-area-inset-bottom)); width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; }
+    .modal-title { font-size: 20px; font-weight: 700; margin-bottom: 20px; }
+    .modal-close { float: right; font-size: 22px; color: var(--text-muted); margin-top: -2px; }
+
+    .lib-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+    .lib-item-info { flex: 1; }
+    .lib-item-name { font-size: 15px; font-weight: 500; margin-bottom: 2px; }
+    .lib-item-meta { font-size: 12px; color: var(--text-dim); font-family: var(--mono); }
+    .lib-item-actions { display: flex; gap: 6px; }
+    .badge { display: inline-block; font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 7px; border-radius: 99px; margin-left: 6px; }
+    .badge-meal { background: rgba(182,243,106,0.15); color: var(--green); }
+    .badge-snack { background: rgba(106,184,243,0.15); color: var(--blue); }
+
+    .weight-entry { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .weight-entry:last-child { border-bottom: none; }
+    .weight-val { font-size: 20px; font-weight: 700; font-family: var(--mono); }
+    .weight-date { font-size: 12px; color: var(--text-dim); }
+
+    .date-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .date-nav-label { font-size: 15px; font-weight: 600; }
+    .date-nav-btn { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; font-size: 18px; color: var(--text-dim); }
+
+    .empty { text-align: center; color: var(--text-muted); padding: 40px 20px; font-size: 14px; line-height: 1.6; }
+
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+    .chip { padding: 7px 14px; border-radius: 99px; font-size: 13px; font-weight: 600; border: 1px solid var(--border); background: var(--surface2); color: var(--text-dim); transition: all 0.15s; }
+    .chip.selected { background: var(--green); color: #0f0f0f; border-color: var(--green); }
+
+    .ing-row { display: flex; align-items: center; gap: 8px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+    .ing-row-info { flex: 1; }
+    .ing-row-name { font-size: 14px; font-weight: 500; }
+    .ing-row-serving { font-size: 12px; color: var(--text-dim); }
+
+    .divider { height: 1px; background: var(--border); margin: 16px 0; }
+    .tag { display: inline-block; font-size: 11px; background: var(--surface2); border-radius: 6px; padding: 2px 6px; color: var(--text-dim); margin: 2px 2px 2px 0; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+const load = (key, fallback) => { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; } };
+const save = (key, val) => { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} };
+const uid = () => Math.random().toString(36).slice(2, 9);
+const today = () => new Date().toISOString().slice(0, 10);
+const fmt = (d) => {
+  if (d === today()) return 'Today';
+  const y = new Date(); y.setDate(y.getDate() - 1);
+  if (d === y.toISOString().slice(0, 10)) return 'Yesterday';
+  return new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+};
+
+function App() {
+  const [tab, setTab] = useState('log');
+  const [ingredients, setIngredients] = useState(() => load('ing_v1', []));
+  const [meals, setMeals] = useState(() => load('meals_v1', []));
+  const [log, setLog] = useState(() => load('log_v1', {}));
+  const [weights, setWeights] = useState(() => load('weights_v1', []));
+  const [settings, setSettings] = useState(() => load('settings_v1', { calories: 1200, protein: 100 }));
+
+  useEffect(() => save('ing_v1', ingredients), [ingredients]);
+  useEffect(() => save('meals_v1', meals), [meals]);
+  useEffect(() => save('log_v1', log), [log]);
+  useEffect(() => save('weights_v1', weights), [weights]);
+  useEffect(() => save('settings_v1', settings), [settings]);
+
+  const p = { ingredients, setIngredients, meals, setMeals, log, setLog, weights, setWeights, settings, setSettings };
+
+  return (
+    <div className="app">
+      {tab === 'log' && <LogScreen {...p} />}
+      {tab === 'library' && <LibraryScreen {...p} />}
+      {tab === 'weight' && <WeightScreen {...p} />}
+      {tab === 'settings' && <SettingsScreen {...p} />}
+      <nav className="tabs">
+        {[['log','📋','Log'],['library','🍳','Library'],['weight','⚖️','Weight'],['settings','⚙️','Settings']].map(([id,icon,label]) => (
+          <button key={id} className={`tab ${tab===id?'active':''}`} onClick={() => setTab(id)}>
+            <span className="tab-icon">{icon}</span>{label}
+          </button>
+        ))}
+      </nav>
+    </div>
+  );
+}
+
+// ─── LOG ────────────────────────────────────────────────────
+function LogScreen({ log, setLog, ingredients, meals, settings }) {
+  const [date, setDate] = useState(today());
+  const [modal, setModal] = useState(null);
+  const [expandedId, setExpandedId] = useState(null);
+
+  const entries = log[date] || [];
+  const mealEntries = entries.filter(e => e.category === 'meal');
+  const snackEntries = entries.filter(e => e.category === 'snack');
+  const totals = entries.reduce((a, e) => ({ cal: a.cal + e.calories, pro: a.pro + e.protein }), { cal: 0, pro: 0 });
+  const calPct = Math.min((totals.cal / settings.calories) * 100, 100);
+  const proPct = Math.min((totals.pro / settings.protein) * 100, 100);
+
+  const addEntry = (entry) => { setLog(prev => ({ ...prev, [date]: [...(prev[date] || []), { ...entry, id: uid() }] })); setModal(null); };
+  const removeEntry = (id) => setLog(prev => ({ ...prev, [date]: prev[date].filter(e => e.id !== id) }));
+  const shiftDate = (d) => { const dt = new Date(date + 'T12:00:00'); dt.setDate(dt.getDate() + d); setDate(dt.toISOString().slice(0, 10)); };
+
+  return (
+    <div className="screen">
+      <div className="date-nav">
+        <button className="date-nav-btn" onClick={() => shiftDate(-1)}>‹</button>
+        <span className="date-nav-label">{fmt(date)}</span>
+        <button className="date-nav-btn" onClick={() => shiftDate(1)} style={{opacity: date===today()?0.3:1}} disabled={date===today()}>›</button>
+      </div>
+
+      <div className="card" style={{marginBottom:20}}>
+        <div className="progress-wrap">
+          <div className="progress-header">
+            <span className="progress-label">Calories</span>
+            <span className="progress-value" style={{color: totals.cal>settings.calories?'var(--red)':undefined}}>{Math.round(totals.cal)} / {settings.calories} kcal</span>
+          </div>
+          <div className="progress-track"><div className={`progress-fill cal ${totals.cal>settings.calories?'over':''}`} style={{width:calPct+'%'}} /></div>
+        </div>
+        <div className="progress-wrap" style={{marginBottom:0}}>
+          <div className="progress-header">
+            <span className="progress-label">Protein</span>
+            <span className="progress-value" style={{color: totals.pro>settings.protein?'var(--red)':undefined}}>{Math.round(totals.pro)} / {settings.protein} g</span>
+          </div>
+          <div className="progress-track"><div className={`progress-fill pro ${totals.pro>settings.protein?'over':''}`} style={{width:proPct+'%'}} /></div>
+        </div>
+      </div>
+
+      <div className="section-label" style={{marginTop:0}}>Meals</div>
+      {mealEntries.length===0 && <p style={{fontSize:13,color:'var(--text-muted)',marginBottom:10}}>No meals logged yet.</p>}
+      {mealEntries.map(e => <EntryCard key={e.id} entry={e} expanded={expandedId===e.id} onToggle={() => setExpandedId(expandedId===e.id?null:e.id)} onDelete={() => removeEntry(e.id)} />)}
+      <button className="btn btn-secondary btn-sm" style={{width:'100%',marginBottom:20}} onClick={() => setModal('meal')}>+ Add Meal</button>
+
+      <div className="section-label" style={{marginTop:0}}>Snacks</div>
+      {snackEntries.length===0 && <p style={{fontSize:13,color:'var(--text-muted)',marginBottom:10}}>No snacks logged yet.</p>}
+      {snackEntries.map(e => <EntryCard key={e.id} entry={e} expanded={expandedId===e.id} onToggle={() => setExpandedId(expandedId===e.id?null:e.id)} onDelete={() => removeEntry(e.id)} />)}
+      <button className="btn btn-secondary btn-sm" style={{width:'100%'}} onClick={() => setModal('snack')}>+ Add Snack</button>
+
+      {modal && <LogModal category={modal} ingredients={ingredients} meals={meals} onAdd={addEntry} onClose={() => setModal(null)} />}
+    </div>
+  );
+}
+
+function EntryCard({ entry, expanded, onToggle, onDelete }) {
+  return (
+    <div className="log-entry">
+      <div className="log-entry-main">
+        <div style={{flex:1}}>
+          <div className="log-entry-name">{entry.name}</div>
+          {entry.servingDisplay && <div style={{fontSize:11,color:'var(--text-muted)'}}>{entry.servingDisplay}</div>}
+        </div>
+        <div className="log-entry-macros">
+          <div style={{color:'var(--amber)'}}>{Math.round(entry.calories)} kcal</div>
+          <div style={{color:'var(--blue)'}}>{Math.round(entry.protein)}g prot</div>
+        </div>
+        {entry.isComposite && <button className="log-entry-delete" onClick={onToggle}>{expanded?'▲':'▼'}</button>}
+        <button className="log-entry-delete" onClick={onDelete}>✕</button>
+      </div>
+      {expanded && entry.ingredients && (
+        <div className="log-entry-expand">
+          {entry.ingredients.map((ing, i) => (
+            <div key={i} className="log-entry-ingredient">
+              <span>{ing.name} — {ing.servingDisplay}</span>
+              <span>{Math.round(ing.calories)} kcal · {Math.round(ing.protein)}g</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LogModal({ category, ingredients, meals, onAdd, onClose }) {
+  const [mode, setMode] = useState('pick');
+  const [selected, setSelected] = useState(null);
+  const [qty, setQty] = useState('');
+  const [unit, setUnit] = useState('g');
+
+  const composites = meals.filter(m => m.category === category);
+
+  const logComposite = (m) => {
+    const ings = m.ingredients.map(ing => {
+      const d = ingredients.find(i => i.id === ing.id);
+      if (!d) return null;
+      const grams = ing.unit === 'g' ? parseFloat(ing.serving) : parseFloat(ing.serving) * (d.gramsPerUnit || 100);
+      const f = grams / 100;
+      return { name: d.name, servingDisplay: `${ing.serving} ${ing.unit}`, calories: d.caloriesPer100 * f, protein: d.proteinPer100 * f };
+    }).filter(Boolean);
+    const cal = ings.reduce((a,i)=>a+i.calories,0);
+    const pro = ings.reduce((a,i)=>a+i.protein,0);
+    onAdd({ name: m.name, category, calories: cal, protein: pro, isComposite: true, ingredients: ings });
+  };
+
+  const pickIng = (ing) => {
+    setSelected(ing);
+    setQty(ing.defaultServing ? String(ing.defaultServing) : '');
+    setUnit(ing.defaultUnit || 'g');
+    setMode('ingredient');
+  };
+
+  const logIng = () => {
+    if (!qty || isNaN(qty)) return;
+    const grams = unit === 'g' ? parseFloat(qty) : parseFloat(qty) * (selected.gramsPerUnit || 100);
+    const f = grams / 100;
+    onAdd({ name: selected.name, category, calories: selected.caloriesPer100 * f, protein: selected.proteinPer100 * f, isComposite: false, servingDisplay: `${qty} ${unit}` });
+  };
+
+  const preview = (() => {
+    if (!selected || !qty || isNaN(qty)) return null;
+    const grams = unit === 'g' ? parseFloat(qty) : parseFloat(qty) * (selected.gramsPerUnit || 100);
+    const f = grams / 100;
+    return { cal: Math.round(selected.caloriesPer100 * f), pro: Math.round(selected.proteinPer100 * f) };
+  })();
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>✕</button>
+        <div className="modal-title">Add {category==='meal'?'Meal':'Snack'}</div>
+
+        {mode === 'pick' && <>
+          {composites.length > 0 && <>
+            <div className="section-label" style={{marginTop:0}}>Saved {category==='meal'?'Meals':'Snack Groups'}</div>
+            {composites.map(m => (
+              <button key={m.id} className="lib-item" style={{width:'100%',textAlign:'left'}} onClick={() => logComposite(m)}>
+                <div className="lib-item-info">
+                  <div className="lib-item-name">{m.name}</div>
+                  <div className="lib-item-meta">{m.ingredients.length} ingredients</div>
+                </div>
+                <span style={{color:'var(--green)',fontSize:20}}>›</span>
+              </button>
+            ))}
+            <div className="divider" />
+          </>}
+          <div className="section-label" style={{marginTop:0}}>Individual Ingredients</div>
+          {ingredients.length===0 && <p className="empty" style={{padding:'16px 0'}}>No ingredients yet — add them in the Library tab first.</p>}
+          {ingredients.map(ing => (
+            <button key={ing.id} className="lib-item" style={{width:'100%',textAlign:'left'}} onClick={() => pickIng(ing)}>
+              <div className="lib-item-info">
+                <div className="lib-item-name">{ing.name}</div>
+                <div className="lib-item-meta">{ing.caloriesPer100} kcal · {ing.proteinPer100}g pro / 100g</div>
+              </div>
+              <span style={{color:'var(--green)',fontSize:20}}>›</span>
+            </button>
+          ))}
+        </>}
+
+        {mode === 'ingredient' && selected && <>
+          <button className="btn-ghost" onClick={() => setMode('pick')}>← Back</button>
+          <div style={{marginTop:14}}>
+            <div style={{fontSize:18,fontWeight:700,marginBottom:2}}>{selected.name}</div>
+            <div style={{fontSize:12,color:'var(--text-dim)',marginBottom:18}}>{selected.caloriesPer100} kcal · {selected.proteinPer100}g protein per 100g</div>
+            <div className="input-row">
+              <div className="field" style={{flex:2}}>
+                <label>Amount</label>
+                <input className="input" type="number" placeholder="e.g. 40" value={qty} onChange={e => setQty(e.target.value)} />
+              </div>
+              <div className="field" style={{flex:1}}>
+                <label>Unit</label>
+                <input className="input" placeholder={selected.defaultUnit||'g'} value={unit} onChange={e => setUnit(e.target.value)} />
+              </div>
+            </div>
+            {preview && (
+              <div className="card" style={{marginBottom:14,display:'flex',justifyContent:'space-between'}}>
+                <span style={{color:'var(--amber)',fontFamily:'var(--mono)',fontSize:14}}>{preview.cal} kcal</span>
+                <span style={{color:'var(--blue)',fontFamily:'var(--mono)',fontSize:14}}>{preview.pro}g protein</span>
+              </div>
+            )}
+            <button className="btn btn-primary" onClick={logIng}>Log This</button>
+          </div>
+        </>}
+      </div>
+    </div>
+  );
+}
+
+// ─── LIBRARY ─────────────────────────────────────────────────
+function LibraryScreen({ ingredients, setIngredients, meals, setMeals }) {
+  const [view, setView] = useState('ingredients');
+  const [modal, setModal] = useState(null);
+  const [editing, setEditing] = useState(null);
+
+  return (
+    <div className="screen">
+      <div className="screen-title">Library</div>
+      <div className="chips">
+        <button className={`chip ${view==='ingredients'?'selected':''}`} onClick={() => setView('ingredients')}>Ingredients</button>
+        <button className={`chip ${view==='meals'?'selected':''}`} onClick={() => setView('meals')}>Composite Meals</button>
+      </div>
+
+      {view === 'ingredients' && <>
+        {ingredients.length===0 && <p className="empty">No ingredients yet.<br/>Add foods with their per-100g nutrition values.</p>}
+        {ingredients.map(ing => (
+          <div key={ing.id} className="lib-item">
+            <div className="lib-item-info">
+              <div className="lib-item-name">{ing.name}</div>
+              <div className="lib-item-meta">{ing.caloriesPer100} kcal · {ing.proteinPer100}g pro / 100g{ing.defaultServing?` · default: ${ing.defaultServing} ${ing.defaultUnit||'g'}`:''}</div>
+            </div>
+            <div className="lib-item-actions">
+              <button className="btn btn-secondary btn-sm" onClick={() => {setEditing(ing);setModal('ing');}}>Edit</button>
+              <button className="btn btn-danger btn-sm" onClick={() => setIngredients(p=>p.filter(i=>i.id!==ing.id))}>✕</button>
+            </div>
+          </div>
+        ))}
+        <button className="btn btn-primary" style={{marginTop:12}} onClick={() => {setEditing(null);setModal('ing');}}>+ New Ingredient</button>
+      </>}
+
+      {view === 'meals' && <>
+        {meals.length===0 && <p className="empty">No composite meals yet.<br/>Combine ingredients into saved meals like "Spinach & Egg Breakfast".</p>}
+        {meals.map(m => (
+          <div key={m.id} className="lib-item" style={{flexDirection:'column',alignItems:'flex-start',gap:8}}>
+            <div style={{display:'flex',width:'100%',alignItems:'center',gap:10}}>
+              <div className="lib-item-info">
+                <div className="lib-item-name">{m.name}<span className={`badge badge-${m.category}`}>{m.category}</span></div>
+                <div className="lib-item-meta">{m.ingredients.length} ingredients</div>
+              </div>
+              <div className="lib-item-actions">
+                <button className="btn btn-secondary btn-sm" onClick={() => {setEditing(m);setModal('meal');}}>Edit</button>
+                <button className="btn btn-danger btn-sm" onClick={() => setMeals(p=>p.filter(x=>x.id!==m.id))}>✕</button>
+              </div>
+            </div>
+            <div>{m.ingredients.map((ing,i) => {
+              const d = ingredients.find(x=>x.id===ing.id);
+              return d ? <span key={i} className="tag">{d.name} · {ing.serving} {ing.unit}</span> : null;
+            })}</div>
+          </div>
+        ))}
+        <button className="btn btn-primary" style={{marginTop:12}} onClick={() => {setEditing(null);setModal('meal');}}>+ New Composite Meal</button>
+      </>}
+
+      {modal==='ing' && <IngredientModal initial={editing} onSave={ing => { if(editing) setIngredients(p=>p.map(i=>i.id===editing.id?{...ing,id:editing.id}:i)); else setIngredients(p=>[...p,{...ing,id:uid()}]); setModal(null); }} onClose={() => setModal(null)} />}
+      {modal==='meal' && <MealModal initial={editing} ingredients={ingredients} onSave={m => { if(editing) setMeals(p=>p.map(x=>x.id===editing.id?{...m,id:editing.id}:x)); else setMeals(p=>[...p,{...m,id:uid()}]); setModal(null); }} onClose={() => setModal(null)} />}
+    </div>
+  );
+}
+
+function IngredientModal({ initial, onSave, onClose }) {
+  const [name, setName] = useState(initial?.name||'');
+  const [cal, setCal] = useState(initial?.caloriesPer100||'');
+  const [pro, setPro] = useState(initial?.proteinPer100||'');
+  const [defServing, setDefServing] = useState(initial?.defaultServing||'');
+  const [defUnit, setDefUnit] = useState(initial?.defaultUnit||'g');
+  const [gramsPerUnit, setGramsPerUnit] = useState(initial?.gramsPerUnit||'');
+
+  const valid = name && cal && pro;
+  const nonGram = defUnit && defUnit !== 'g';
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>✕</button>
+        <div className="modal-title">{initial?'Edit':'New'} Ingredient</div>
+        <div className="field"><label>Name</label><input className="input" placeholder="e.g. Digestive Biscuit" value={name} onChange={e=>setName(e.target.value)} /></div>
+        <div className="input-row">
+          <div className="field"><label>Calories / 100g</label><input className="input" type="number" placeholder="480" value={cal} onChange={e=>setCal(e.target.value)} /></div>
+          <div className="field"><label>Protein / 100g</label><input className="input" type="number" placeholder="6" value={pro} onChange={e=>setPro(e.target.value)} /></div>
+        </div>
+        <div className="divider" />
+        <div style={{fontSize:12,color:'var(--text-dim)',marginBottom:12}}>Optional: set a default serving size.</div>
+        <div className="input-row">
+          <div className="field"><label>Default serving</label><input className="input" type="number" placeholder="e.g. 14" value={defServing} onChange={e=>setDefServing(e.target.value)} /></div>
+          <div className="field"><label>Unit</label><input className="input" placeholder="g / biscuit / packet" value={defUnit} onChange={e=>setDefUnit(e.target.value)} /></div>
+        </div>
+        {nonGram && defUnit && (
+          <div className="field">
+            <label>Grams per "{defUnit}" (for calorie calc)</label>
+            <input className="input" type="number" placeholder="e.g. 14.5" value={gramsPerUnit} onChange={e=>setGramsPerUnit(e.target.value)} />
+          </div>
+        )}
+        <button className="btn btn-primary" style={{opacity:valid?1:0.4}} onClick={() => valid && onSave({ name, caloriesPer100:parseFloat(cal), proteinPer100:parseFloat(pro), defaultServing:defServing?parseFloat(defServing):null, defaultUnit:defUnit||'g', gramsPerUnit:gramsPerUnit?parseFloat(gramsPerUnit):null })}>{initial?'Save Changes':'Add Ingredient'}</button>
+      </div>
+    </div>
+  );
+}
+
+function MealModal({ initial, ingredients, onSave, onClose }) {
+  const [name, setName] = useState(initial?.name||'');
+  const [category, setCategory] = useState(initial?.category||'meal');
+  const [mealIngs, setMealIngs] = useState(initial?.ingredients||[]);
+  const [adding, setAdding] = useState(false);
+  const [pickId, setPickId] = useState('');
+  const [pickServing, setPickServing] = useState('');
+  const [pickUnit, setPickUnit] = useState('g');
+
+  const addIng = () => {
+    if (!pickId||!pickServing) return;
+    setMealIngs(p=>[...p,{id:pickId,serving:parseFloat(pickServing),unit:pickUnit}]);
+    setPickId(''); setPickServing(''); setPickUnit('g'); setAdding(false);
+  };
+
+  const valid = name && mealIngs.length > 0;
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>✕</button>
+        <div className="modal-title">{initial?'Edit':'New'} Composite Meal</div>
+        <div className="field"><label>Name</label><input className="input" placeholder="e.g. Spinach & Egg Breakfast" value={name} onChange={e=>setName(e.target.value)} /></div>
+        <div className="field">
+          <label>Category</label>
+          <div className="chips" style={{marginBottom:0}}>
+            <button className={`chip ${category==='meal'?'selected':''}`} onClick={()=>setCategory('meal')}>Meal</button>
+            <button className={`chip ${category==='snack'?'selected':''}`} onClick={()=>setCategory('snack')}>Snack</button>
+          </div>
+        </div>
+        <div className="section-label">Ingredients</div>
+        {mealIngs.map((ing,i)=>{
+          const d=ingredients.find(x=>x.id===ing.id);
+          return d?(<div key={i} className="ing-row"><div className="ing-row-info"><div className="ing-row-name">{d.name}</div><div className="ing-row-serving">{ing.serving} {ing.unit}</div></div><button style={{color:'var(--red)',fontSize:16}} onClick={()=>setMealIngs(p=>p.filter((_,j)=>j!==i))}>✕</button></div>):null;
+        })}
+        {adding ? (
+          <div className="card">
+            <div className="field">
+              <label>Ingredient</label>
+              <select className="input" value={pickId} onChange={e=>{
+                setPickId(e.target.value);
+                const ing=ingredients.find(i=>i.id===e.target.value);
+                if(ing?.defaultServing){setPickServing(String(ing.defaultServing));setPickUnit(ing.defaultUnit||'g');}
+              }}>
+                <option value="">Select...</option>
+                {ingredients.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}
+              </select>
+            </div>
+            <div className="input-row">
+              <div className="field"><label>Amount</label><input className="input" type="number" placeholder="80" value={pickServing} onChange={e=>setPickServing(e.target.value)} /></div>
+              <div className="field"><label>Unit</label><input className="input" placeholder="g" value={pickUnit} onChange={e=>setPickUnit(e.target.value)} /></div>
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button className="btn btn-primary" style={{flex:1}} onClick={addIng}>Add</button>
+              <button className="btn btn-secondary" style={{flex:1}} onClick={()=>setAdding(false)}>Cancel</button>
+            </div>
+          </div>
+        ):(
+          <button className="btn btn-secondary btn-sm" style={{width:'100%',marginBottom:16}} onClick={()=>setAdding(true)}>+ Add Ingredient</button>
+        )}
+        <button className="btn btn-primary" style={{opacity:valid?1:0.4,marginTop:8}} onClick={()=>valid&&onSave({name,category,ingredients:mealIngs})}>{initial?'Save Changes':'Create Meal'}</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── WEIGHT ──────────────────────────────────────────────────
+function WeightScreen({ weights, setWeights }) {
+  const [kg, setKg] = useState('');
+  const [date, setDate] = useState(today());
+
+  const logWeight = () => {
+    if (!kg||isNaN(kg)) return;
+    const entry = { id:uid(), date, kg:parseFloat(parseFloat(kg).toFixed(1)) };
+    setWeights(prev => [...prev.filter(w=>w.date!==date), entry].sort((a,b)=>b.date.localeCompare(a.date)));
+    setKg('');
+  };
+
+  const latest = weights[0];
+  const prev = weights[1];
+  const diff = latest&&prev ? (latest.kg-prev.kg).toFixed(1) : null;
+
+  return (
+    <div className="screen">
+      <div className="screen-title">Weight</div>
+      {latest && (
+        <div className="card" style={{marginBottom:20,textAlign:'center'}}>
+          <div style={{fontSize:11,color:'var(--text-muted)',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>Latest</div>
+          <div style={{fontSize:52,fontWeight:700,fontFamily:'var(--mono)',color:'var(--green)',lineHeight:1}}>{latest.kg}</div>
+          <div style={{fontSize:14,color:'var(--text-dim)',marginTop:4}}>kg · {fmt(latest.date)}</div>
+          {diff!==null && <div style={{marginTop:8,fontSize:14,color:parseFloat(diff)<0?'var(--green)':parseFloat(diff)>0?'var(--red)':'var(--text-dim)'}}>{parseFloat(diff)>0?'+':''}{diff} kg since last entry</div>}
+        </div>
+      )}
+      <div className="card" style={{marginBottom:20}}>
+        <div style={{fontSize:13,fontWeight:600,marginBottom:12}}>Log Weight</div>
+        <div style={{display:'flex',gap:8,alignItems:'flex-end'}}>
+          <div className="field" style={{flex:2,marginBottom:0}}>
+            <input className="input" type="number" step="0.1" placeholder="e.g. 82.4 kg" value={kg} onChange={e=>setKg(e.target.value)} />
+          </div>
+          <div className="field" style={{flex:2,marginBottom:0}}>
+            <input className="input" type="date" value={date} onChange={e=>setDate(e.target.value)} />
+          </div>
+          <button className="btn btn-primary" style={{flex:0,whiteSpace:'nowrap',marginBottom:0,padding:'11px 16px'}} onClick={logWeight}>Log</button>
+        </div>
+      </div>
+      <div className="section-label">History</div>
+      {weights.length===0 && <p className="empty">No entries yet. Log your morning weight above.</p>}
+      {weights.length>0 && (
+        <div className="card">
+          {weights.slice(0,30).map((w,i)=>{
+            const p=weights[i+1];
+            const d=p?(w.kg-p.kg).toFixed(1):null;
+            return (
+              <div key={w.id} className="weight-entry">
+                <div>
+                  <div className="weight-val">{w.kg} <span style={{fontSize:14,color:'var(--text-dim)'}}>kg</span></div>
+                  {d!==null&&<div style={{fontSize:11,color:parseFloat(d)<0?'var(--green)':parseFloat(d)>0?'var(--red)':'var(--text-dim)'}}>{parseFloat(d)>0?'+':''}{d} kg</div>}
+                </div>
+                <div style={{textAlign:'right'}}>
+                  <div className="weight-date">{fmt(w.date)}</div>
+                  <button style={{fontSize:11,color:'var(--red)',marginTop:4}} onClick={()=>setWeights(p=>p.filter(x=>x.id!==w.id))}>Remove</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── SETTINGS ────────────────────────────────────────────────
+function SettingsScreen({ settings, setSettings }) {
+  const [cal, setCal] = useState(String(settings.calories));
+  const [pro, setPro] = useState(String(settings.protein));
+  const [saved, setSaved] = useState(false);
+
+  const saveSettings = () => {
+    if (!cal||!pro) return;
+    setSettings({ calories:parseFloat(cal), protein:parseFloat(pro) });
+    setSaved(true); setTimeout(()=>setSaved(false),2000);
+  };
+
+  return (
+    <div className="screen">
+      <div className="screen-title">Settings</div>
+      <div className="card" style={{marginBottom:20}}>
+        <div className="field"><label>Daily Calorie Target (kcal)</label><input className="input" type="number" value={cal} onChange={e=>setCal(e.target.value)} /></div>
+        <div className="field" style={{marginBottom:0}}><label>Daily Protein Target (g)</label><input className="input" type="number" value={pro} onChange={e=>setPro(e.target.value)} /></div>
+      </div>
+      <button className="btn btn-primary" onClick={saveSettings}>{saved?'✅ Saved!':'Save Targets'}</button>
+      <div className="section-label" style={{marginTop:32}}>About</div>
+      <div className="card">
+        <p style={{fontSize:13,color:'var(--text-dim)',lineHeight:1.8}}>
+          <strong style={{color:'var(--text)'}}>Fuel</strong> — personal nutrition tracker.<br/>
+          All data is stored locally on your device.<br/>
+          Ingredients use per-100g values for easy food label comparison.<br/>
+          Protein at ~1g per lb bodyweight is a solid target for muscle retention in a calorie deficit.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
 </body>
 </html>
