@@ -266,7 +266,7 @@ function LogModal({ category, ingredients, meals, onAdd, onClose }) {
     const ings = m.ingredients.map(ing => {
       const d = ingredients.find(i => i.id === ing.id);
       if (!d) return null;
-      const grams = ing.unit === 'g' ? parseFloat(ing.serving) : parseFloat(ing.serving) * (d.gramsPerUnit || 100);
+      const grams = parseFloat(ing.serving);
       const f = grams / 100;
       return { name: displayName(d), servingDisplay: `${ing.serving} ${ing.unit}`, calories: d.caloriesPer100 * f, protein: d.proteinPer100 * f };
     }).filter(Boolean);
@@ -277,21 +277,21 @@ function LogModal({ category, ingredients, meals, onAdd, onClose }) {
 
   const pickIng = (ing) => {
     setSelected(ing);
-    setQty(ing.defaultServing ? String(ing.defaultServing) : '');
+    setQty(String(ing.defaultServing || 100));
     setUnit(ing.defaultUnit || 'g');
     setMode('ingredient');
   };
 
   const logIng = () => {
     if (!qty || isNaN(qty)) return;
-    const grams = unit === 'g' ? parseFloat(qty) : parseFloat(qty) * (selected.gramsPerUnit || 100);
+    const grams = parseFloat(qty);
     const f = grams / 100;
     onAdd({ name: displayName(selected), category, calories: selected.caloriesPer100 * f, protein: selected.proteinPer100 * f, isComposite: false, servingDisplay: `${qty} ${unit}` });
   };
 
   const preview = (() => {
     if (!selected || !qty || isNaN(qty)) return null;
-    const grams = unit === 'g' ? parseFloat(qty) : parseFloat(qty) * (selected.gramsPerUnit || 100);
+    const grams = parseFloat(qty);
     const f = grams / 100;
     return { cal: Math.round(selected.caloriesPer100 * f), pro: Math.round(selected.proteinPer100 * f) };
   })();
@@ -322,7 +322,7 @@ function LogModal({ category, ingredients, meals, onAdd, onClose }) {
             <button key={ing.id} className="lib-item" style={{width:'100%',textAlign:'left'}} onClick={() => pickIng(ing)}>
               <div className="lib-item-info">
                 <div className="lib-item-name">{displayName(ing)}</div>
-                <div className="lib-item-meta">{ing.caloriesPer100} kcal · {ing.proteinPer100}g pro / 100g</div>
+                <div className="lib-item-meta">{ing.caloriesPer100} kcal · {ing.proteinPer100}g pro / 100{ing.defaultUnit==='ml'?'ml':'g'}</div>
               </div>
               <span style={{color:'var(--green)',fontSize:20}}>›</span>
             </button>
@@ -333,7 +333,7 @@ function LogModal({ category, ingredients, meals, onAdd, onClose }) {
           <button className="btn-ghost" onClick={() => setMode('pick')}>← Back</button>
           <div style={{marginTop:14}}>
             <div style={{fontSize:18,fontWeight:700,marginBottom:2}}>{displayName(selected)}</div>
-            <div style={{fontSize:12,color:'var(--text-dim)',marginBottom:18}}>{selected.caloriesPer100} kcal · {selected.proteinPer100}g protein per 100g</div>
+            <div style={{fontSize:12,color:'var(--text-dim)',marginBottom:18}}>{selected.caloriesPer100} kcal · {selected.proteinPer100}g protein per 100{selected.defaultUnit==='ml'?'ml':'g'}</div>
             <div className="input-row">
               <div className="field" style={{flex:2}}>
                 <label>Amount</label>
@@ -378,7 +378,7 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals }) {
           <div key={ing.id} className="lib-item">
             <div className="lib-item-info">
               <div className="lib-item-name">{displayName(ing)}</div>
-              <div className="lib-item-meta">{ing.caloriesPer100} kcal · {ing.proteinPer100}g pro / 100g{ing.defaultServing?` · default: ${ing.defaultServing} ${ing.defaultUnit||'g'}`:''}</div>
+              <div className="lib-item-meta">{ing.caloriesPer100} kcal · {ing.proteinPer100}g pro / 100{ing.defaultUnit==='ml'?'ml':'g'}{ing.defaultServing?` · default: ${ing.defaultServing} ${ing.defaultUnit||'g'}`:''}</div>
             </div>
             <div className="lib-item-actions">
               <button className="btn btn-secondary btn-sm" onClick={() => {setEditing(ing);setModal('ing');}}>Edit</button>
@@ -425,10 +425,7 @@ function IngredientModal({ initial, onSave, onClose }) {
   const [pro, setPro] = useState(initial?.proteinPer100||'');
   const [defServing, setDefServing] = useState(initial?.defaultServing||'');
   const [defUnit, setDefUnit] = useState(initial?.defaultUnit||'g');
-  const [gramsPerUnit, setGramsPerUnit] = useState(initial?.gramsPerUnit||'');
-
   const valid = name && cal && pro;
-  const nonGram = defUnit && defUnit !== 'g';
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -438,22 +435,16 @@ function IngredientModal({ initial, onSave, onClose }) {
         <div className="field"><label>Name</label><input className="input" placeholder="e.g. Greek Yogurt" value={name} onChange={e=>setName(e.target.value)} /></div>
         <div className="field"><label>Brand (optional)</label><input className="input" placeholder="e.g. Sainsbury's" value={brand} onChange={e=>setBrand(e.target.value)} /></div>
         <div className="input-row">
-          <div className="field"><label>Calories / 100g</label><input className="input" type="number" placeholder="480" value={cal} onChange={e=>setCal(e.target.value)} /></div>
-          <div className="field"><label>Protein / 100g</label><input className="input" type="number" placeholder="6" value={pro} onChange={e=>setPro(e.target.value)} /></div>
+          <div className="field"><label>Calories / 100g or 100ml</label><input className="input" type="number" placeholder="480" value={cal} onChange={e=>setCal(e.target.value)} /></div>
+          <div className="field"><label>Protein / 100g or 100ml</label><input className="input" type="number" placeholder="6" value={pro} onChange={e=>setPro(e.target.value)} /></div>
         </div>
         <div className="divider" />
         <div style={{fontSize:12,color:'var(--text-dim)',marginBottom:12}}>Optional: set a default serving size.</div>
         <div className="input-row">
-          <div className="field"><label>Default serving</label><input className="input" type="number" placeholder="e.g. 14" value={defServing} onChange={e=>setDefServing(e.target.value)} /></div>
-          <div className="field"><label>Unit</label><input className="input" placeholder="g / biscuit / packet" value={defUnit} onChange={e=>setDefUnit(e.target.value)} /></div>
+          <div className="field"><label>Default serving</label><input className="input" type="number" placeholder="100" value={defServing} onChange={e=>setDefServing(e.target.value)} /></div>
+          <div className="field"><label>Unit</label><select className="input" value={defUnit} onChange={e=>setDefUnit(e.target.value)}><option value="g">g</option><option value="ml">ml</option></select></div>
         </div>
-        {nonGram && defUnit && (
-          <div className="field">
-            <label>Grams per "{defUnit}" (for calorie calc)</label>
-            <input className="input" type="number" placeholder="e.g. 14.5" value={gramsPerUnit} onChange={e=>setGramsPerUnit(e.target.value)} />
-          </div>
-        )}
-        <button className="btn btn-primary" style={{opacity:valid?1:0.4}} onClick={() => valid && onSave({ name, brand:brand||null, caloriesPer100:parseFloat(cal), proteinPer100:parseFloat(pro), defaultServing:defServing?parseFloat(defServing):null, defaultUnit:defUnit||'g', gramsPerUnit:gramsPerUnit?parseFloat(gramsPerUnit):null })}>{initial?'Save Changes':'Add Ingredient'}</button>
+        <button className="btn btn-primary" style={{opacity:valid?1:0.4}} onClick={() => valid && onSave({ name, brand:brand||null, caloriesPer100:parseFloat(cal), proteinPer100:parseFloat(pro), defaultServing:defServing?parseFloat(defServing):null, defaultUnit:defUnit||'g' })}>{initial?'Save Changes':'Add Ingredient'}</button>
       </div>
     </div>
   );
@@ -501,7 +492,7 @@ function MealModal({ initial, ingredients, onSave, onClose }) {
               <select className="input" value={pickId} onChange={e=>{
                 setPickId(e.target.value);
                 const ing=ingredients.find(i=>i.id===e.target.value);
-                if(ing?.defaultServing){setPickServing(String(ing.defaultServing));setPickUnit(ing.defaultUnit||'g');}
+                if(ing){setPickServing(String(ing.defaultServing||100));setPickUnit(ing.defaultUnit||'g');}
               }}>
                 <option value="">Select...</option>
                 {ingredients.map(i=><option key={i.id} value={i.id}>{displayName(i)}</option>)}
@@ -509,7 +500,7 @@ function MealModal({ initial, ingredients, onSave, onClose }) {
             </div>
             <div className="input-row">
               <div className="field"><label>Amount</label><input className="input" type="number" placeholder="80" value={pickServing} onChange={e=>setPickServing(e.target.value)} /></div>
-              <div className="field"><label>Unit</label><input className="input" placeholder="g" value={pickUnit} onChange={e=>setPickUnit(e.target.value)} /></div>
+              <div className="field"><label>Unit</label><select className="input" value={pickUnit} onChange={e=>setPickUnit(e.target.value)}><option value="g">g</option><option value="ml">ml</option></select></div>
             </div>
             <div style={{display:'flex',gap:8}}>
               <button className="btn btn-primary" style={{flex:1}} onClick={addIng}>Add</button>
