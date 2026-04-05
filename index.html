@@ -133,6 +133,7 @@ const fmt = (d) => {
   if (d === y.toISOString().slice(0, 10)) return 'Yesterday';
   return new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 };
+const displayName = (ing) => ing.brand ? `${ing.name} (${ing.brand})` : ing.name;
 
 function App() {
   const [tab, setTab] = useState('log');
@@ -267,7 +268,7 @@ function LogModal({ category, ingredients, meals, onAdd, onClose }) {
       if (!d) return null;
       const grams = ing.unit === 'g' ? parseFloat(ing.serving) : parseFloat(ing.serving) * (d.gramsPerUnit || 100);
       const f = grams / 100;
-      return { name: d.name, servingDisplay: `${ing.serving} ${ing.unit}`, calories: d.caloriesPer100 * f, protein: d.proteinPer100 * f };
+      return { name: displayName(d), servingDisplay: `${ing.serving} ${ing.unit}`, calories: d.caloriesPer100 * f, protein: d.proteinPer100 * f };
     }).filter(Boolean);
     const cal = ings.reduce((a,i)=>a+i.calories,0);
     const pro = ings.reduce((a,i)=>a+i.protein,0);
@@ -285,7 +286,7 @@ function LogModal({ category, ingredients, meals, onAdd, onClose }) {
     if (!qty || isNaN(qty)) return;
     const grams = unit === 'g' ? parseFloat(qty) : parseFloat(qty) * (selected.gramsPerUnit || 100);
     const f = grams / 100;
-    onAdd({ name: selected.name, category, calories: selected.caloriesPer100 * f, protein: selected.proteinPer100 * f, isComposite: false, servingDisplay: `${qty} ${unit}` });
+    onAdd({ name: displayName(selected), category, calories: selected.caloriesPer100 * f, protein: selected.proteinPer100 * f, isComposite: false, servingDisplay: `${qty} ${unit}` });
   };
 
   const preview = (() => {
@@ -320,7 +321,7 @@ function LogModal({ category, ingredients, meals, onAdd, onClose }) {
           {ingredients.map(ing => (
             <button key={ing.id} className="lib-item" style={{width:'100%',textAlign:'left'}} onClick={() => pickIng(ing)}>
               <div className="lib-item-info">
-                <div className="lib-item-name">{ing.name}</div>
+                <div className="lib-item-name">{displayName(ing)}</div>
                 <div className="lib-item-meta">{ing.caloriesPer100} kcal · {ing.proteinPer100}g pro / 100g</div>
               </div>
               <span style={{color:'var(--green)',fontSize:20}}>›</span>
@@ -331,7 +332,7 @@ function LogModal({ category, ingredients, meals, onAdd, onClose }) {
         {mode === 'ingredient' && selected && <>
           <button className="btn-ghost" onClick={() => setMode('pick')}>← Back</button>
           <div style={{marginTop:14}}>
-            <div style={{fontSize:18,fontWeight:700,marginBottom:2}}>{selected.name}</div>
+            <div style={{fontSize:18,fontWeight:700,marginBottom:2}}>{displayName(selected)}</div>
             <div style={{fontSize:12,color:'var(--text-dim)',marginBottom:18}}>{selected.caloriesPer100} kcal · {selected.proteinPer100}g protein per 100g</div>
             <div className="input-row">
               <div className="field" style={{flex:2}}>
@@ -376,7 +377,7 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals }) {
         {ingredients.map(ing => (
           <div key={ing.id} className="lib-item">
             <div className="lib-item-info">
-              <div className="lib-item-name">{ing.name}</div>
+              <div className="lib-item-name">{displayName(ing)}</div>
               <div className="lib-item-meta">{ing.caloriesPer100} kcal · {ing.proteinPer100}g pro / 100g{ing.defaultServing?` · default: ${ing.defaultServing} ${ing.defaultUnit||'g'}`:''}</div>
             </div>
             <div className="lib-item-actions">
@@ -404,7 +405,7 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals }) {
             </div>
             <div>{m.ingredients.map((ing,i) => {
               const d = ingredients.find(x=>x.id===ing.id);
-              return d ? <span key={i} className="tag">{d.name} · {ing.serving} {ing.unit}</span> : null;
+              return d ? <span key={i} className="tag">{displayName(d)} · {ing.serving} {ing.unit}</span> : null;
             })}</div>
           </div>
         ))}
@@ -419,6 +420,7 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals }) {
 
 function IngredientModal({ initial, onSave, onClose }) {
   const [name, setName] = useState(initial?.name||'');
+  const [brand, setBrand] = useState(initial?.brand||'');
   const [cal, setCal] = useState(initial?.caloriesPer100||'');
   const [pro, setPro] = useState(initial?.proteinPer100||'');
   const [defServing, setDefServing] = useState(initial?.defaultServing||'');
@@ -433,7 +435,8 @@ function IngredientModal({ initial, onSave, onClose }) {
       <div className="modal" onClick={e=>e.stopPropagation()}>
         <button className="modal-close" onClick={onClose}>✕</button>
         <div className="modal-title">{initial?'Edit':'New'} Ingredient</div>
-        <div className="field"><label>Name</label><input className="input" placeholder="e.g. Digestive Biscuit" value={name} onChange={e=>setName(e.target.value)} /></div>
+        <div className="field"><label>Name</label><input className="input" placeholder="e.g. Greek Yogurt" value={name} onChange={e=>setName(e.target.value)} /></div>
+        <div className="field"><label>Brand (optional)</label><input className="input" placeholder="e.g. Sainsbury's" value={brand} onChange={e=>setBrand(e.target.value)} /></div>
         <div className="input-row">
           <div className="field"><label>Calories / 100g</label><input className="input" type="number" placeholder="480" value={cal} onChange={e=>setCal(e.target.value)} /></div>
           <div className="field"><label>Protein / 100g</label><input className="input" type="number" placeholder="6" value={pro} onChange={e=>setPro(e.target.value)} /></div>
@@ -450,7 +453,7 @@ function IngredientModal({ initial, onSave, onClose }) {
             <input className="input" type="number" placeholder="e.g. 14.5" value={gramsPerUnit} onChange={e=>setGramsPerUnit(e.target.value)} />
           </div>
         )}
-        <button className="btn btn-primary" style={{opacity:valid?1:0.4}} onClick={() => valid && onSave({ name, caloriesPer100:parseFloat(cal), proteinPer100:parseFloat(pro), defaultServing:defServing?parseFloat(defServing):null, defaultUnit:defUnit||'g', gramsPerUnit:gramsPerUnit?parseFloat(gramsPerUnit):null })}>{initial?'Save Changes':'Add Ingredient'}</button>
+        <button className="btn btn-primary" style={{opacity:valid?1:0.4}} onClick={() => valid && onSave({ name, brand:brand||null, caloriesPer100:parseFloat(cal), proteinPer100:parseFloat(pro), defaultServing:defServing?parseFloat(defServing):null, defaultUnit:defUnit||'g', gramsPerUnit:gramsPerUnit?parseFloat(gramsPerUnit):null })}>{initial?'Save Changes':'Add Ingredient'}</button>
       </div>
     </div>
   );
@@ -489,7 +492,7 @@ function MealModal({ initial, ingredients, onSave, onClose }) {
         <div className="section-label">Ingredients</div>
         {mealIngs.map((ing,i)=>{
           const d=ingredients.find(x=>x.id===ing.id);
-          return d?(<div key={i} className="ing-row"><div className="ing-row-info"><div className="ing-row-name">{d.name}</div><div className="ing-row-serving">{ing.serving} {ing.unit}</div></div><button style={{color:'var(--red)',fontSize:16}} onClick={()=>setMealIngs(p=>p.filter((_,j)=>j!==i))}>✕</button></div>):null;
+          return d?(<div key={i} className="ing-row"><div className="ing-row-info"><div className="ing-row-name">{displayName(d)}</div><div className="ing-row-serving">{ing.serving} {ing.unit}</div></div><button style={{color:'var(--red)',fontSize:16}} onClick={()=>setMealIngs(p=>p.filter((_,j)=>j!==i))}>✕</button></div>):null;
         })}
         {adding ? (
           <div className="card">
@@ -501,7 +504,7 @@ function MealModal({ initial, ingredients, onSave, onClose }) {
                 if(ing?.defaultServing){setPickServing(String(ing.defaultServing));setPickUnit(ing.defaultUnit||'g');}
               }}>
                 <option value="">Select...</option>
-                {ingredients.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}
+                {ingredients.map(i=><option key={i.id} value={i.id}>{displayName(i)}</option>)}
               </select>
             </div>
             <div className="input-row">
