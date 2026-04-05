@@ -561,8 +561,10 @@ function WeightScreen({ weights, setWeights }) {
         <div className="card" style={{marginBottom:8}}>
           <div style={{fontSize:13,fontWeight:600,marginBottom:12}}>Log Weight</div>
           <div style={{display:'flex',gap:8,alignItems:'flex-end'}}>
-            <div className="field" style={{flex:2,marginBottom:0}}>
-              <input className="input" type="text" inputMode="decimal" placeholder="e.g. 82.4" value={kg} {...numInput(setKg)} />
+            <div className="field" style={{flex:2,marginBottom:0,display:'flex',gap:4,alignItems:'center'}}>
+              <button className="btn btn-secondary" style={{padding:'10px 10px',fontSize:16,lineHeight:1,flexShrink:0}} onClick={()=>setKg(v=>{const n=parseFloat(v);return isNaN(n)?v:(Math.max(0,n-0.1)).toFixed(1);})}>−</button>
+              <input className="input" type="text" inputMode="decimal" placeholder="e.g. 82.4" value={kg} {...numInput(setKg)} style={{textAlign:'center'}} />
+              <button className="btn btn-secondary" style={{padding:'10px 10px',fontSize:16,lineHeight:1,flexShrink:0}} onClick={()=>setKg(v=>{const n=parseFloat(v);return isNaN(n)?v:(n+0.1).toFixed(1);})}>+</button>
             </div>
             <div className="field" style={{flex:2,marginBottom:0}}>
               <input className="input" type="date" value={date} onChange={e=>setDate(e.target.value)} />
