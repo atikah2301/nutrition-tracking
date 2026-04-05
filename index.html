@@ -124,6 +124,32 @@
     .status-label { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; }
     .status-value { font-size: 14px; font-weight: 700; font-family: var(--mono); }
     .status-hint { font-size: 10px; color: var(--text-dim); margin-top: 4px; }
+
+    [data-theme="light"] {
+      --bg: #f5f5f5;
+      --surface: #ffffff;
+      --surface2: #eaeaea;
+      --border: #d4d4d4;
+      --text: #1a1a1a;
+      --text-muted: #888;
+      --text-dim: #666;
+      --green: #4a9e2f;
+      --red: #d93636;
+      --amber: #c98a00;
+      --blue: #2a7bbf;
+    }
+    [data-theme="light"] .btn-primary { color: #fff; }
+    [data-theme="light"] .chip.selected { color: #fff; }
+    [data-theme="light"] .modal-backdrop { background: rgba(0,0,0,0.4); }
+    [data-theme="light"] .badge-meal { background: rgba(74,158,47,0.12); }
+    [data-theme="light"] .badge-snack { background: rgba(42,123,191,0.12); }
+
+    .theme-toggle { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; cursor: pointer; }
+    .theme-toggle-label { font-size: 15px; font-weight: 500; }
+    .theme-toggle-track { width: 44px; height: 24px; border-radius: 99px; background: var(--surface2); border: 1px solid var(--border); position: relative; transition: background 0.2s; }
+    .theme-toggle-track.on { background: var(--green); }
+    .theme-toggle-thumb { width: 18px; height: 18px; border-radius: 99px; background: var(--text); position: absolute; top: 2px; left: 2px; transition: transform 0.2s; }
+    .theme-toggle-track.on .theme-toggle-thumb { transform: translateX(20px); background: #fff; }
   </style>
 </head>
 <body>
@@ -155,14 +181,16 @@ function App() {
   const [log, setLog] = useState(() => load('log_v1', {}));
   const [weights, setWeights] = useState(() => load('weights_v1', []));
   const [settings, setSettings] = useState(() => load('settings_v1', { calories: 1200, protein: 100, weightMode: 'lose', weightAmount: null, weightTime: null, weightTimeUnit: 'months' }));
+  const [theme, setTheme] = useState(() => load('theme_v1', 'dark'));
 
+  useEffect(() => { document.documentElement.setAttribute('data-theme', theme); save('theme_v1', theme); }, [theme]);
   useEffect(() => save('ing_v1', ingredients), [ingredients]);
   useEffect(() => save('meals_v1', meals), [meals]);
   useEffect(() => save('log_v1', log), [log]);
   useEffect(() => save('weights_v1', weights), [weights]);
   useEffect(() => save('settings_v1', settings), [settings]);
 
-  const p = { ingredients, setIngredients, meals, setMeals, log, setLog, weights, setWeights, settings, setSettings };
+  const p = { ingredients, setIngredients, meals, setMeals, log, setLog, weights, setWeights, settings, setSettings, theme, setTheme };
 
   return (
     <div className="app">
@@ -183,13 +211,24 @@ function App() {
 }
 
 // ─── DASHBOARD ──────────────────────────────────────────────
-function DashChart({ label, data, color, targetValue, targetMode, unit, trendLine }) {
+function DashChart({ label, data, color, targetValue, targetMode, unit, trendLine, theme }) {
   const canvasRef = React.useRef(null);
   const chartRef = React.useRef(null);
 
   useEffect(() => {
     if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; }
     if (!data || data.length === 0) return;
+
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    const gridCol = isLight ? '#d4d4d4' : '#2e2e2e';
+    const tickCol = isLight ? '#888' : '#666';
+    const tooltipBg = isLight ? '#ffffff' : '#1a1a1a';
+    const tooltipBorder = isLight ? '#d4d4d4' : '#2e2e2e';
+    const tooltipTitle = isLight ? '#666' : '#999';
+    const tooltipBody = isLight ? '#1a1a1a' : '#f0f0f0';
+    const targetFill = isLight ? 'rgba(74,158,47,0.08)' : 'rgba(182,243,106,0.08)';
+    const targetBorder = isLight ? 'rgba(74,158,47,0.3)' : 'rgba(182,243,106,0.3)';
+    const trendBorder = isLight ? 'rgba(74,158,47,0.4)' : 'rgba(182,243,106,0.4)';
 
     const ctx = canvasRef.current.getContext('2d');
     const labels = data.map(d => {
@@ -209,8 +248,8 @@ function DashChart({ label, data, color, targetValue, targetMode, unit, trendLin
           label: 'Target zone',
           data: labels.map(() => targetValue),
           fill: { target: 'origin' },
-          backgroundColor: 'rgba(182,243,106,0.08)',
-          borderColor: 'rgba(182,243,106,0.3)',
+          backgroundColor: targetFill,
+          borderColor: targetBorder,
           borderWidth: 1,
           borderDash: [6, 4],
           pointRadius: 0,
@@ -223,8 +262,8 @@ function DashChart({ label, data, color, targetValue, targetMode, unit, trendLin
           label: 'Target zone',
           data: labels.map(() => targetValue),
           fill: { target: { value: maxVal } },
-          backgroundColor: 'rgba(182,243,106,0.08)',
-          borderColor: 'rgba(182,243,106,0.3)',
+          backgroundColor: targetFill,
+          borderColor: targetBorder,
           borderWidth: 1,
           borderDash: [6, 4],
           pointRadius: 0,
@@ -256,7 +295,7 @@ function DashChart({ label, data, color, targetValue, targetMode, unit, trendLin
       datasets.push({
         label: 'Target',
         data: trendValues,
-        borderColor: 'rgba(182,243,106,0.4)',
+        borderColor: trendBorder,
         borderWidth: 1.5,
         borderDash: [6, 4],
         pointRadius: 0,
@@ -277,11 +316,11 @@ function DashChart({ label, data, color, targetValue, targetMode, unit, trendLin
         plugins: {
           legend: { display: false },
           tooltip: {
-            backgroundColor: '#1a1a1a',
-            borderColor: '#2e2e2e',
+            backgroundColor: tooltipBg,
+            borderColor: tooltipBorder,
             borderWidth: 1,
-            titleColor: '#999',
-            bodyColor: '#f0f0f0',
+            titleColor: tooltipTitle,
+            bodyColor: tooltipBody,
             bodyFont: { family: "'DM Mono', monospace" },
             callbacks: {
               label: (ctx) => ctx.dataset.label === 'Target zone' ? null : `${Math.round(ctx.parsed.y * 10) / 10} ${unit}`,
@@ -291,14 +330,14 @@ function DashChart({ label, data, color, targetValue, targetMode, unit, trendLin
         },
         scales: {
           x: {
-            ticks: { color: '#666', font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 7 },
-            grid: { color: '#2e2e2e' },
-            border: { color: '#2e2e2e' },
+            ticks: { color: tickCol, font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 7 },
+            grid: { color: gridCol },
+            border: { color: gridCol },
           },
           y: {
-            ticks: { color: '#666', font: { family: "'DM Mono', monospace", size: 11 } },
-            grid: { color: '#2e2e2e' },
-            border: { color: '#2e2e2e' },
+            ticks: { color: tickCol, font: { family: "'DM Mono', monospace", size: 11 } },
+            grid: { color: gridCol },
+            border: { color: gridCol },
             beginAtZero: targetValue != null,
           },
         },
@@ -306,7 +345,7 @@ function DashChart({ label, data, color, targetValue, targetMode, unit, trendLin
     });
 
     return () => { if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; } };
-  }, [data, color, targetValue, targetMode, label, unit, trendLine]);
+  }, [data, color, targetValue, targetMode, label, unit, trendLine, theme]);
 
   if (!data || data.length === 0) {
     return (
@@ -327,7 +366,7 @@ function DashChart({ label, data, color, targetValue, targetMode, unit, trendLin
   );
 }
 
-function DashScreen({ log, weights, settings }) {
+function DashScreen({ log, weights, settings, theme }) {
   const [range, setRange] = useState('1M');
 
   const filterByRange = (items) => {
@@ -450,9 +489,9 @@ function DashScreen({ log, weights, settings }) {
         )}
       </div>
       <div style={{flex:1, overflowY:'auto', padding:'0 16px', paddingBottom:`calc(var(--tab-height) + 16px)`}}>
-        <DashChart label="Weight (kg)" data={weightData} color="#c4a8ff" unit="kg" trendLine={weightTrend} />
-        <DashChart label="Calories (kcal)" data={calData} color="#f0a0b0" targetValue={settings.calories} targetMode="max" unit="kcal" />
-        <DashChart label="Protein (g)" data={proData} color="#7ecfc0" targetValue={settings.protein} targetMode="min" unit="g" />
+        <DashChart label="Weight (kg)" data={weightData} color="#c4a8ff" unit="kg" trendLine={weightTrend} theme={theme} />
+        <DashChart label="Calories (kcal)" data={calData} color="#f0a0b0" targetValue={settings.calories} targetMode="max" unit="kcal" theme={theme} />
+        <DashChart label="Protein (g)" data={proData} color="#7ecfc0" targetValue={settings.protein} targetMode="min" unit="g" theme={theme} />
       </div>
     </div>
   );
@@ -932,7 +971,7 @@ function WeightScreen({ weights, setWeights }) {
 }
 
 // ─── SETTINGS ────────────────────────────────────────────────
-function SettingsScreen({ settings, setSettings }) {
+function SettingsScreen({ settings, setSettings, theme, setTheme }) {
   const [cal, setCal] = useState(String(settings.calories));
   const [pro, setPro] = useState(String(settings.protein));
   const [wMode, setWMode] = useState(settings.weightMode || 'lose');
@@ -997,6 +1036,12 @@ function SettingsScreen({ settings, setSettings }) {
       </div>
 
       <button className="btn btn-primary" onClick={saveSettings}>{saved?'✅ Saved!':'Save Targets'}</button>
+      <div className="section-label" style={{marginTop:32}}>Appearance</div>
+      <div className="theme-toggle" onClick={() => setTheme(t => t==='dark'?'light':'dark')}>
+        <span className="theme-toggle-label">{theme==='light'?'☀️ Light Mode':'🌙 Dark Mode'}</span>
+        <div className={`theme-toggle-track ${theme==='light'?'on':''}`}><div className="theme-toggle-thumb" /></div>
+      </div>
+
       <div className="section-label" style={{marginTop:32}}>About</div>
       <div className="card">
         <p style={{fontSize:13,color:'var(--text-dim)',lineHeight:1.8}}>
