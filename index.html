@@ -146,7 +146,7 @@ function App() {
   const [meals, setMeals] = useState(() => load('meals_v1', []));
   const [log, setLog] = useState(() => load('log_v1', {}));
   const [weights, setWeights] = useState(() => load('weights_v1', []));
-  const [settings, setSettings] = useState(() => load('settings_v1', { calories: 1200, protein: 100 }));
+  const [settings, setSettings] = useState(() => load('settings_v1', { calories: 1200, protein: 100, weightMode: 'lose', weightAmount: null, weightTime: null, weightTimeUnit: 'months' }));
 
   useEffect(() => save('ing_v1', ingredients), [ingredients]);
   useEffect(() => save('meals_v1', meals), [meals]);
@@ -175,7 +175,7 @@ function App() {
 }
 
 // ─── DASHBOARD ──────────────────────────────────────────────
-function DashChart({ label, data, color, targetValue, targetMode, unit }) {
+function DashChart({ label, data, color, targetValue, targetMode, unit, trendLine }) {
   const canvasRef = React.useRef(null);
   const chartRef = React.useRef(null);
 
@@ -239,6 +239,26 @@ function DashChart({ label, data, color, targetValue, targetMode, unit }) {
       fill: false,
     });
 
+    // Trend line
+    if (trendLine && trendLine.length > 0) {
+      const trendValues = data.map(d => {
+        const match = trendLine.find(t => t.date === d.date);
+        return match ? match.value : null;
+      });
+      datasets.push({
+        label: 'Target',
+        data: trendValues,
+        borderColor: 'rgba(182,243,106,0.4)',
+        borderWidth: 1.5,
+        borderDash: [6, 4],
+        pointRadius: 0,
+        pointHitRadius: 0,
+        tension: 0,
+        fill: false,
+        spanGaps: true,
+      });
+    }
+
     chartRef.current = new Chart(ctx, {
       type: 'line',
       data: { labels, datasets },
@@ -278,7 +298,7 @@ function DashChart({ label, data, color, targetValue, targetMode, unit }) {
     });
 
     return () => { if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; } };
-  }, [data, color, targetValue, targetMode, label, unit]);
+  }, [data, color, targetValue, targetMode, label, unit, trendLine]);
 
   if (!data || data.length === 0) {
     return (
@@ -317,6 +337,27 @@ function DashScreen({ log, weights, settings }) {
     [...weights].sort((a, b) => a.date.localeCompare(b.date)).map(w => ({ date: w.date, value: w.kg }))
   );
 
+  // Weight trend line
+  const weightTrend = (() => {
+    if (!settings.weightAmount || !settings.weightTime || weightData.length === 0) return null;
+    const startDate = new Date(weightData[0].date + 'T12:00:00');
+    const startKg = weightData[0].value;
+    const endDate = new Date(startDate);
+    if (settings.weightTimeUnit === 'weeks') endDate.setDate(endDate.getDate() + settings.weightTime * 7);
+    else endDate.setMonth(endDate.getMonth() + settings.weightTime);
+    const totalDays = (endDate - startDate) / (1000 * 60 * 60 * 24);
+    if (totalDays <= 0) return null;
+    const sign = settings.weightMode === 'lose' ? -1 : 1;
+    const endKg = startKg + sign * settings.weightAmount;
+    return weightData.map(d => {
+      const dt = new Date(d.date + 'T12:00:00');
+      const elapsed = (dt - startDate) / (1000 * 60 * 60 * 24);
+      if (elapsed < 0) return { date: d.date, value: null };
+      const progress = Math.min(elapsed / totalDays, 1);
+      return { date: d.date, value: Math.round((startKg + (endKg - startKg) * progress) * 10) / 10 };
+    });
+  })();
+
   // Calorie & protein daily totals
   const dailyTotals = Object.entries(log)
     .map(([date, entries]) => ({
@@ -338,7 +379,7 @@ function DashScreen({ log, weights, settings }) {
           <button key={r} className={`chip ${range===r?'selected':''}`} onClick={() => setRange(r)}>{r}</button>
         ))}
       </div>
-      <DashChart label="Weight (kg)" data={weightData} color="#b6f36a" unit="kg" />
+      <DashChart label="Weight (kg)" data={weightData} color="#b6f36a" unit="kg" trendLine={weightTrend} />
       <DashChart label="Calories (kcal)" data={calData} color="#ffc94d" targetValue={settings.calories} targetMode="max" unit="kcal" />
       <DashChart label="Protein (g)" data={proData} color="#6ab8f3" targetValue={settings.protein} targetMode="min" unit="g" />
     </div>
@@ -791,11 +832,32 @@ function WeightScreen({ weights, setWeights }) {
 function SettingsScreen({ settings, setSettings }) {
   const [cal, setCal] = useState(String(settings.calories));
   const [pro, setPro] = useState(String(settings.protein));
+  const [wMode, setWMode] = useState(settings.weightMode || 'lose');
+  const [wAmount, setWAmount] = useState(settings.weightAmount ? String(settings.weightAmount) : '');
+  const [wTime, setWTime] = useState(settings.weightTime ? String(settings.weightTime) : '');
+  const [wTimeUnit, setWTimeUnit] = useState(settings.weightTimeUnit || 'months');
   const [saved, setSaved] = useState(false);
+
+  const kgPerWeek = (wAmount && wTime && !isNaN(wAmount) && !isNaN(wTime) && parseFloat(wTime) > 0)
+    ? parseFloat(wAmount) / (wTimeUnit === 'weeks' ? parseFloat(wTime) : parseFloat(wTime) * 4.345) : null;
+
+  const rateGuidance = (() => {
+    if (kgPerWeek === null) return null;
+    if (kgPerWeek <= 0.5) return { text: 'Safe and sustainable', color: 'var(--green)' };
+    if (kgPerWeek <= 1.0) return { text: 'Aggressive but achievable — requires discipline', color: 'var(--amber)' };
+    return { text: 'Not recommended — risk of muscle loss and nutrient deficiency', color: 'var(--red)' };
+  })();
 
   const saveSettings = () => {
     if (!cal||!pro) return;
-    setSettings({ calories:parseFloat(cal), protein:parseFloat(pro) });
+    setSettings({
+      calories: parseFloat(cal),
+      protein: parseFloat(pro),
+      weightMode: wMode,
+      weightAmount: wAmount ? parseFloat(wAmount) : null,
+      weightTime: wTime ? parseFloat(wTime) : null,
+      weightTimeUnit: wTimeUnit,
+    });
     setSaved(true); setTimeout(()=>setSaved(false),2000);
   };
 
@@ -806,6 +868,31 @@ function SettingsScreen({ settings, setSettings }) {
         <div className="field"><label>Daily Calorie Target (kcal)</label><input className="input" type="text" inputMode="decimal" value={cal} {...numInput(setCal)} /></div>
         <div className="field" style={{marginBottom:0}}><label>Daily Protein Target (g)</label><input className="input" type="text" inputMode="decimal" value={pro} {...numInput(setPro)} /></div>
       </div>
+
+      <div className="section-label" style={{marginTop:24}}>Weight Target</div>
+      <div className="card" style={{marginBottom:20}}>
+        <div className="field">
+          <label>Goal</label>
+          <div className="chips" style={{marginBottom:0}}>
+            <button className={`chip ${wMode==='lose'?'selected':''}`} onClick={()=>setWMode('lose')}>Lose</button>
+            <button className={`chip ${wMode==='gain'?'selected':''}`} onClick={()=>setWMode('gain')}>Gain</button>
+          </div>
+        </div>
+        <div className="field"><label>Amount (kg)</label><input className="input" type="text" inputMode="decimal" placeholder="e.g. 5" value={wAmount} {...numInput(setWAmount)} /></div>
+        <div className="input-row">
+          <div className="field" style={{flex:2}}><label>Timeframe</label><input className="input" type="text" inputMode="decimal" placeholder={wTimeUnit==='weeks'?'e.g. 12':'e.g. 6'} value={wTime} {...numInput(setWTime)} /></div>
+          <div className="field" style={{flex:1}}><label>Unit</label><select className="input" value={wTimeUnit} onChange={e=>setWTimeUnit(e.target.value)}><option value="months">Months</option><option value="weeks">Weeks</option></select></div>
+        </div>
+        {kgPerWeek !== null && (
+          <div style={{marginTop:4}}>
+            <div style={{fontSize:14,fontFamily:'var(--mono)',marginBottom:6}}>
+              {wMode === 'lose' ? '−' : '+'}{(Math.round(kgPerWeek * 100) / 100).toFixed(2)} kg/week
+            </div>
+            <div style={{fontSize:12,fontWeight:500,color:rateGuidance.color}}>{rateGuidance.text}</div>
+          </div>
+        )}
+      </div>
+
       <button className="btn btn-primary" onClick={saveSettings}>{saved?'✅ Saved!':'Save Targets'}</button>
       <div className="section-label" style={{marginTop:32}}>About</div>
       <div className="card">
