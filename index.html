@@ -513,6 +513,10 @@ function LogScreen({ log, setLog, ingredients, meals, settings }) {
   const [date, setDate] = useState(today());
   const [modal, setModal] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
+  const [cloneModal, setCloneModal] = useState(false);
+  const [cloneDate, setCloneDate] = useState('');
+  const [cloned, setCloned] = useState(false);
+  const [cloneReplace, setCloneReplace] = useState(true);
 
   const entries = log[date] || [];
   const mealEntries = entries.filter(e => e.category === 'meal');
@@ -520,10 +524,20 @@ function LogScreen({ log, setLog, ingredients, meals, settings }) {
   const totals = entries.reduce((a, e) => ({ cal: a.cal + e.calories, pro: a.pro + e.protein }), { cal: 0, pro: 0 });
   const calPct = Math.min((totals.cal / settings.calories) * 100, 100);
   const proPct = Math.min((totals.pro / settings.protein) * 100, 100);
+  const pastDates = Object.keys(log).filter(d => d !== today() && log[d].length > 0).sort((a, b) => b.localeCompare(a));
+  const todayHasEntries = (log[today()] || []).length > 0;
 
   const addEntry = (entry) => { setLog(prev => ({ ...prev, [date]: [...(prev[date] || []), { ...entry, id: uid() }] })); setModal(null); };
   const removeEntry = (id) => setLog(prev => ({ ...prev, [date]: prev[date].filter(e => e.id !== id) }));
   const shiftDate = (d) => { const dt = new Date(date + 'T12:00:00'); dt.setDate(dt.getDate() + d); setDate(dt.toISOString().slice(0, 10)); };
+  const cloneEntries = (fromDate, replace) => {
+    const src = log[fromDate] || [];
+    if (src.length === 0) return;
+    const cloned = src.map(e => ({ ...e, id: uid() }));
+    setLog(prev => ({ ...prev, [today()]: replace ? cloned : [...(prev[today()] || []), ...cloned] }));
+    setCloneModal(false); setCloneDate('');
+    setCloned(true); setTimeout(() => setCloned(false), 2000);
+  };
 
   return (
     <div className="screen">
@@ -559,6 +573,49 @@ function LogScreen({ log, setLog, ingredients, meals, settings }) {
       {snackEntries.length===0 && <p style={{fontSize:13,color:'var(--text-muted)',marginBottom:10}}>No snacks logged yet.</p>}
       {snackEntries.map(e => <EntryCard key={e.id} entry={e} settings={settings} expanded={expandedId===e.id} onToggle={() => setExpandedId(expandedId===e.id?null:e.id)} onDelete={() => removeEntry(e.id)} />)}
       <button className="btn btn-secondary btn-sm" style={{width:'100%'}} onClick={() => setModal('snack')}>+ Add Snack</button>
+
+      {date === today() && pastDates.length > 0 && (
+        <button className="btn btn-secondary btn-sm" style={{width:'100%',marginTop:20}} onClick={() => { setCloneDate(pastDates[0]); setCloneModal(true); }}>
+          {cloned ? '✅ Cloned!' : '📋 Clone from previous'}
+        </button>
+      )}
+      {date !== today() && entries.length > 0 && (
+        <button className="btn btn-secondary btn-sm" style={{width:'100%',marginTop:20}} onClick={() => { setCloneDate(date); setCloneReplace(true); setCloneModal(true); }}>
+          {cloned ? '✅ Cloned!' : '📋 Clone to today'}
+        </button>
+      )}
+
+      {cloneModal && (
+        <div className="modal-backdrop" onClick={() => setCloneModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setCloneModal(false)}>✕</button>
+            <div className="modal-title">Clone to today</div>
+            {date === today() && <div className="field">
+              <label>Select a day to clone</label>
+              <select className="input" value={cloneDate} onChange={e => setCloneDate(e.target.value)}>
+                {pastDates.map(d => <option key={d} value={d}>{fmt(d)} — {log[d].length} {log[d].length===1?'entry':'entries'}</option>)}
+              </select>
+            </div>}
+            {cloneDate && log[cloneDate] && (
+              <div style={{marginBottom:14}}>
+                {log[cloneDate].map((e, i) => (
+                  <div key={i} style={{fontSize:13,color:'var(--text-dim)',padding:'3px 0'}}>{e.name} — {Math.round(e.calories)} kcal · {Math.round(e.protein)}g pro</div>
+                ))}
+              </div>
+            )}
+            {todayHasEntries && (
+              <div className="field">
+                <label>Today already has entries</label>
+                <div className="chips" style={{marginBottom:0}}>
+                  <button className={`chip ${cloneReplace?'selected':''}`} onClick={()=>setCloneReplace(true)}>Replace</button>
+                  <button className={`chip ${!cloneReplace?'selected':''}`} onClick={()=>setCloneReplace(false)}>Add to existing</button>
+                </div>
+              </div>
+            )}
+            <button className="btn btn-primary" onClick={() => cloneEntries(cloneDate, cloneReplace && todayHasEntries)}>Clone to today</button>
+          </div>
+        </div>
+      )}
 
       {modal && <LogModal category={modal} ingredients={ingredients} meals={meals} settings={settings} onAdd={addEntry} onClose={() => setModal(null)} />}
     </div>
@@ -710,10 +767,39 @@ function LogModal({ category, ingredients, meals, settings, onAdd, onClose }) {
 }
 
 // ─── LIBRARY ─────────────────────────────────────────────────
-function LibraryScreen({ ingredients, setIngredients, meals, setMeals, settings }) {
+function LibraryScreen({ ingredients, setIngredients, meals, setMeals, settings, log, setLog }) {
   const [view, setView] = useState('ingredients');
   const [modal, setModal] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [quickLog, setQuickLog] = useState(null);
+  const [qlCategory, setQlCategory] = useState('snack');
+  const [qlAmount, setQlAmount] = useState('');
+  const [qlUnit, setQlUnit] = useState('g');
+  const [qlDone, setQlDone] = useState(false);
+
+  const logToToday = (entry) => {
+    setLog(prev => ({ ...prev, [today()]: [...(prev[today()] || []), { ...entry, id: uid() }] }));
+    setQlDone(true); setTimeout(() => { setQlDone(false); setQuickLog(null); }, 1200);
+  };
+
+  const logCompositeQuick = (m) => {
+    const ings = m.ingredients.map(ing => {
+      const d = ingredients.find(i => i.id === ing.id);
+      if (!d) return null;
+      const f = parseFloat(ing.serving) / 100;
+      return { name: displayName(d), servingDisplay: `${ing.serving} ${ing.unit}`, calories: d.caloriesPer100 * f, protein: d.proteinPer100 * f };
+    }).filter(Boolean);
+    const cal = ings.reduce((a, i) => a + i.calories, 0);
+    const pro = ings.reduce((a, i) => a + i.protein, 0);
+    logToToday({ name: m.name, category: qlCategory, calories: cal, protein: pro, isComposite: true, ingredients: ings });
+  };
+
+  const logIngQuick = (ing) => {
+    const amt = parseFloat(qlAmount);
+    if (!amt || isNaN(amt)) return;
+    const f = amt / 100;
+    logToToday({ name: displayName(ing), category: qlCategory, calories: ing.caloriesPer100 * f, protein: ing.proteinPer100 * f, isComposite: false, servingDisplay: `${qlAmount} ${qlUnit}` });
+  };
 
   return (
     <div style={{display:'flex', flexDirection:'column', height:'100%', overflow:'hidden'}}>
@@ -735,6 +821,7 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals, settings 
                 <div className="lib-item-meta">{ing.caloriesPer100} kcal · {ing.proteinPer100}g pro / 100{ing.defaultUnit==='ml'?'ml':'g'}{ing.defaultServing?` · default: ${ing.defaultServing} ${ing.defaultUnit||'g'}`:''}</div>
               </div>
               <div className="lib-item-actions">
+                <button className="btn btn-secondary btn-sm" onClick={() => { setQuickLog({type:'ing',item:ing}); setQlCategory('snack'); setQlAmount(String(ing.defaultServing||100)); setQlUnit(ing.defaultUnit||'g'); }}>Log</button>
                 <button className="btn btn-secondary btn-sm" onClick={() => {setEditing(ing);setModal('ing');}}>Edit</button>
                 <ConfirmDelete className="btn btn-danger btn-sm" onConfirm={() => setIngredients(p=>p.filter(i=>i.id!==ing.id))} />
               </div>
@@ -752,6 +839,7 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals, settings 
                   <div className="lib-item-meta">{Math.round(t.cal)} kcal · {Math.round(t.pro)}g pro · {m.ingredients.length} ingredients</div>
                 </div>
                 <div className="lib-item-actions">
+                  <button className="btn btn-secondary btn-sm" onClick={() => { setQuickLog({type:'composite',item:m}); setQlCategory(m.category||'meal'); }}>Log</button>
                   <button className="btn btn-secondary btn-sm" onClick={() => {setEditing(m);setModal('meal');}}>Edit</button>
                   <ConfirmDelete className="btn btn-danger btn-sm" onConfirm={() => setMeals(p=>p.filter(x=>x.id!==m.id))} />
                 </div>
@@ -772,6 +860,64 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals, settings 
 
       {modal==='ing' && <IngredientModal initial={editing} onSave={ing => { if(editing) setIngredients(p=>p.map(i=>i.id===editing.id?{...ing,id:editing.id}:i)); else setIngredients(p=>[...p,{...ing,id:uid()}]); setModal(null); }} onClose={() => setModal(null)} />}
       {modal==='meal' && <MealModal initial={editing} ingredients={ingredients} settings={settings} onSave={m => { if(editing) setMeals(p=>p.map(x=>x.id===editing.id?{...m,id:editing.id}:x)); else setMeals(p=>[...p,{...m,id:uid()}]); setModal(null); }} onClose={() => setModal(null)} />}
+
+      {quickLog && (
+        <div className="modal-backdrop" onClick={() => setQuickLog(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setQuickLog(null)}>✕</button>
+            <div className="modal-title">Quick Log to Today</div>
+            <div style={{fontSize:16,fontWeight:600,marginBottom:4}}>{quickLog.type==='composite' ? quickLog.item.name : displayName(quickLog.item)}</div>
+
+            <div className="field" style={{marginTop:14}}>
+              <label>Category</label>
+              <div className="chips" style={{marginBottom:0}}>
+                <button className={`chip ${qlCategory==='meal'?'selected':''}`} onClick={()=>setQlCategory('meal')}>Meal</button>
+                <button className={`chip ${qlCategory==='snack'?'selected':''}`} onClick={()=>setQlCategory('snack')}>Snack</button>
+              </div>
+            </div>
+
+            {quickLog.type === 'composite' && (() => {
+              const m = quickLog.item;
+              const t = m.ingredients.reduce((a,ing) => { const d = ingredients.find(x=>x.id===ing.id); if(!d) return a; const f = parseFloat(ing.serving)/100; return { cal: a.cal+d.caloriesPer100*f, pro: a.pro+d.proteinPer100*f }; }, {cal:0,pro:0});
+              return <>
+                <div style={{marginTop:10,marginBottom:14}}>
+                  {m.ingredients.map((ing,i) => { const d = ingredients.find(x=>x.id===ing.id); return d ? <div key={i} style={{fontSize:12,color:'var(--text-dim)',padding:'2px 0'}}>{displayName(d)} · {ing.serving} {ing.unit}</div> : null; })}
+                </div>
+                <div className="card" style={{marginBottom:14,display:'flex',justifyContent:'space-between'}}>
+                  <span style={{color:'var(--amber)',fontFamily:'var(--mono)',fontSize:14}}>{Math.round(t.cal)} kcal</span>
+                  <span style={{color:'var(--blue)',fontFamily:'var(--mono)',fontSize:14}}>{Math.round(t.pro)}g protein</span>
+                </div>
+                <button className="btn btn-primary" onClick={() => logCompositeQuick(m)}>{qlDone ? '✅ Logged!' : 'Log to today'}</button>
+              </>;
+            })()}
+
+            {quickLog.type === 'ing' && (() => {
+              const ing = quickLog.item;
+              const amt = parseFloat(qlAmount);
+              const preview = amt && !isNaN(amt) ? { cal: Math.round(ing.caloriesPer100 * amt / 100), pro: Math.round(ing.proteinPer100 * amt / 100) } : null;
+              return <>
+                <div className="input-row" style={{marginTop:10}}>
+                  <div className="field" style={{flex:2}}>
+                    <label>Amount</label>
+                    <input className="input" type="text" inputMode="decimal" placeholder="e.g. 40" value={qlAmount} {...numInput(setQlAmount)} />
+                  </div>
+                  <div className="field" style={{flex:1}}>
+                    <label>Unit</label>
+                    <select className="input" value={qlUnit} onChange={e=>setQlUnit(e.target.value)}><option value="g">g</option><option value="ml">ml</option></select>
+                  </div>
+                </div>
+                {preview && (
+                  <div className="card" style={{marginBottom:14,display:'flex',justifyContent:'space-between'}}>
+                    <span style={{color:'var(--amber)',fontFamily:'var(--mono)',fontSize:14}}>{preview.cal} kcal</span>
+                    <span style={{color:'var(--blue)',fontFamily:'var(--mono)',fontSize:14}}>{preview.pro}g protein</span>
+                  </div>
+                )}
+                <button className="btn btn-primary" style={{opacity:preview?1:0.4}} onClick={() => logIngQuick(ing)}>{qlDone ? '✅ Logged!' : 'Log to today'}</button>
+              </>;
+            })()}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
