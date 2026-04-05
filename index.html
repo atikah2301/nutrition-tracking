@@ -502,25 +502,29 @@ function LogScreen({ log, setLog, ingredients, meals, settings }) {
 
       <div className="section-label" style={{marginTop:0}}>Meals</div>
       {mealEntries.length===0 && <p style={{fontSize:13,color:'var(--text-muted)',marginBottom:10}}>No meals logged yet.</p>}
-      {mealEntries.map(e => <EntryCard key={e.id} entry={e} expanded={expandedId===e.id} onToggle={() => setExpandedId(expandedId===e.id?null:e.id)} onDelete={() => removeEntry(e.id)} />)}
+      {mealEntries.map(e => <EntryCard key={e.id} entry={e} settings={settings} expanded={expandedId===e.id} onToggle={() => setExpandedId(expandedId===e.id?null:e.id)} onDelete={() => removeEntry(e.id)} />)}
       <button className="btn btn-secondary btn-sm" style={{width:'100%',marginBottom:20}} onClick={() => setModal('meal')}>+ Add Meal</button>
 
       <div className="section-label" style={{marginTop:0}}>Snacks</div>
       {snackEntries.length===0 && <p style={{fontSize:13,color:'var(--text-muted)',marginBottom:10}}>No snacks logged yet.</p>}
-      {snackEntries.map(e => <EntryCard key={e.id} entry={e} expanded={expandedId===e.id} onToggle={() => setExpandedId(expandedId===e.id?null:e.id)} onDelete={() => removeEntry(e.id)} />)}
+      {snackEntries.map(e => <EntryCard key={e.id} entry={e} settings={settings} expanded={expandedId===e.id} onToggle={() => setExpandedId(expandedId===e.id?null:e.id)} onDelete={() => removeEntry(e.id)} />)}
       <button className="btn btn-secondary btn-sm" style={{width:'100%'}} onClick={() => setModal('snack')}>+ Add Snack</button>
 
-      {modal && <LogModal category={modal} ingredients={ingredients} meals={meals} onAdd={addEntry} onClose={() => setModal(null)} />}
+      {modal && <LogModal category={modal} ingredients={ingredients} meals={meals} settings={settings} onAdd={addEntry} onClose={() => setModal(null)} />}
     </div>
   );
 }
 
-function EntryCard({ entry, expanded, onToggle, onDelete }) {
+function EntryCard({ entry, settings, expanded, onToggle, onDelete }) {
+  const targetRatio = settings.calories>0 ? (settings.protein*4)/settings.calories : 0;
+  const entryRatio = entry.calories>0 ? (entry.protein*4)/entry.calories : 0;
+  const pct = targetRatio>0 ? entryRatio/targetRatio : 1;
+  const dotCol = pct>=1?'var(--green)':pct>=0.7?'var(--amber)':'var(--red)';
   return (
     <div className="log-entry">
       <div className="log-entry-main">
         <div style={{flex:1}}>
-          <div className="log-entry-name">{entry.name}</div>
+          <div className="log-entry-name"><span style={{display:'inline-block',width:8,height:8,borderRadius:'50%',background:dotCol,marginRight:6,verticalAlign:'middle'}} />{entry.name}</div>
           {entry.servingDisplay && <div style={{fontSize:11,color:'var(--text-muted)'}}>{entry.servingDisplay}</div>}
         </div>
         <div className="log-entry-macros">
@@ -544,7 +548,8 @@ function EntryCard({ entry, expanded, onToggle, onDelete }) {
   );
 }
 
-function LogModal({ category, ingredients, meals, onAdd, onClose }) {
+function LogModal({ category, ingredients, meals, settings, onAdd, onClose }) {
+  const targetRatio = settings.calories>0 ? (settings.protein*4)/settings.calories : 0;
   const [mode, setMode] = useState('pick');
   const [selected, setSelected] = useState(null);
   const [qty, setQty] = useState('');
@@ -599,29 +604,29 @@ function LogModal({ category, ingredients, meals, onAdd, onClose }) {
           <div style={{height:320,overflowY:'auto'}}>
             {composites.length > 0 && <>
               <div className="section-label" style={{marginTop:0}}>Saved Composites</div>
-              {composites.map(m => (
+              {composites.map(m => { const t = m.ingredients.reduce((a,ing) => { const d = ingredients.find(x=>x.id===ing.id); if(!d) return a; const f = parseFloat(ing.serving)/100; return { cal: a.cal+d.caloriesPer100*f, pro: a.pro+d.proteinPer100*f }; }, {cal:0,pro:0}); const mRatio = t.cal>0 ? (t.pro*4)/t.cal : 0; const mPct = targetRatio>0 ? mRatio/targetRatio : 1; const mDot = mPct>=1?'var(--green)':mPct>=0.7?'var(--amber)':'var(--red)'; return (
                 <button key={m.id} className="lib-item" style={{width:'100%',textAlign:'left'}} onClick={() => logComposite(m)}>
                   <div className="lib-item-info">
-                    <div className="lib-item-name">{m.name}</div>
+                    <div className="lib-item-name"><span style={{display:'inline-block',width:8,height:8,borderRadius:'50%',background:mDot,marginRight:6,verticalAlign:'middle'}} />{m.name}</div>
                     <div className="lib-item-meta">{m.ingredients.length} ingredients</div>
                   </div>
                   <span style={{color:'var(--green)',fontSize:20}}>›</span>
                 </button>
-              ))}
+              ); })}
               <div className="divider" />
             </>}
             <div className="section-label" style={{marginTop:0}}>Individual Ingredients</div>
             {ingredients.length===0 && !search && <p className="empty" style={{padding:'16px 0'}}>No ingredients yet — add them in the Library tab first.</p>}
             {filteredIngs.length===0 && search && <p style={{fontSize:13,color:'var(--text-muted)',padding:'16px 0',textAlign:'center'}}>No ingredients match "{search}"</p>}
-            {filteredIngs.map(ing => (
+            {filteredIngs.map(ing => { const iRatio = ing.caloriesPer100>0 ? (ing.proteinPer100*4)/ing.caloriesPer100 : 0; const iPct = targetRatio>0 ? iRatio/targetRatio : 1; const iDot = iPct>=1?'var(--green)':iPct>=0.7?'var(--amber)':'var(--red)'; return (
               <button key={ing.id} className="lib-item" style={{width:'100%',textAlign:'left'}} onClick={() => pickIng(ing)}>
                 <div className="lib-item-info">
-                  <div className="lib-item-name">{displayName(ing)}</div>
+                  <div className="lib-item-name"><span style={{display:'inline-block',width:8,height:8,borderRadius:'50%',background:iDot,marginRight:6,verticalAlign:'middle'}} />{displayName(ing)}</div>
                   <div className="lib-item-meta">{ing.caloriesPer100} kcal · {ing.proteinPer100}g pro / 100{ing.defaultUnit==='ml'?'ml':'g'}</div>
                 </div>
                 <span style={{color:'var(--green)',fontSize:20}}>›</span>
               </button>
-            ))}
+            ); })}
           </div>
         </>}
 
@@ -655,7 +660,7 @@ function LogModal({ category, ingredients, meals, onAdd, onClose }) {
 }
 
 // ─── LIBRARY ─────────────────────────────────────────────────
-function LibraryScreen({ ingredients, setIngredients, meals, setMeals }) {
+function LibraryScreen({ ingredients, setIngredients, meals, setMeals, settings }) {
   const [view, setView] = useState('ingredients');
   const [modal, setModal] = useState(null);
   const [editing, setEditing] = useState(null);
@@ -673,10 +678,10 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals }) {
       <div style={{flex:1, overflowY:'auto', padding:'0 16px'}}>
         {view === 'ingredients' && <>
           {ingredients.length===0 && <p className="empty">No ingredients yet.<br/>Add foods with their per-100g nutrition values.</p>}
-          {ingredients.map(ing => (
+          {ingredients.map(ing => { const targetRatio = settings.calories>0 ? (settings.protein*4)/settings.calories : 0; const ingRatio = ing.caloriesPer100>0 ? (ing.proteinPer100*4)/ing.caloriesPer100 : 0; const pct = targetRatio>0 ? ingRatio/targetRatio : 1; const dotCol = pct>=1?'var(--green)':pct>=0.7?'var(--amber)':'var(--red)'; return (
             <div key={ing.id} className="lib-item">
               <div className="lib-item-info">
-                <div className="lib-item-name">{displayName(ing)}</div>
+                <div className="lib-item-name"><span style={{display:'inline-block',width:8,height:8,borderRadius:'50%',background:dotCol,marginRight:6,verticalAlign:'middle'}} />{displayName(ing)}</div>
                 <div className="lib-item-meta">{ing.caloriesPer100} kcal · {ing.proteinPer100}g pro / 100{ing.defaultUnit==='ml'?'ml':'g'}{ing.defaultServing?` · default: ${ing.defaultServing} ${ing.defaultUnit||'g'}`:''}</div>
               </div>
               <div className="lib-item-actions">
@@ -684,17 +689,17 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals }) {
                 <button className="btn btn-danger btn-sm" onClick={() => setIngredients(p=>p.filter(i=>i.id!==ing.id))}>✕</button>
               </div>
             </div>
-          ))}
+          ); })}
         </>}
 
         {view === 'meals' && <>
           {meals.length===0 && <p className="empty">No composites yet.<br/>Combine ingredients into saved combos like "Spinach & Egg Breakfast" or "Protein Shake".</p>}
-          {meals.map(m => (
+          {meals.map(m => { const t = m.ingredients.reduce((a,ing) => { const d = ingredients.find(x=>x.id===ing.id); if(!d) return a; const f = parseFloat(ing.serving)/100; return { cal: a.cal+d.caloriesPer100*f, pro: a.pro+d.proteinPer100*f }; }, {cal:0,pro:0}); const targetRatio = settings.calories>0 ? (settings.protein*4)/settings.calories : 0; const mealRatio = t.cal>0 ? (t.pro*4)/t.cal : 0; const pct = targetRatio>0 ? mealRatio/targetRatio : 1; const dotCol = pct>=1?'var(--green)':pct>=0.7?'var(--amber)':'var(--red)'; return (
             <div key={m.id} className="lib-item" style={{flexDirection:'column',alignItems:'flex-start',gap:8}}>
               <div style={{display:'flex',width:'100%',alignItems:'center',gap:10}}>
                 <div className="lib-item-info">
-                  <div className="lib-item-name">{m.name}<span className={`badge badge-${m.category}`}>{m.category}</span></div>
-                  <div className="lib-item-meta">{(() => { const t = m.ingredients.reduce((a,ing) => { const d = ingredients.find(x=>x.id===ing.id); if(!d) return a; const f = parseFloat(ing.serving)/100; return { cal: a.cal+d.caloriesPer100*f, pro: a.pro+d.proteinPer100*f }; }, {cal:0,pro:0}); return `${Math.round(t.cal)} kcal · ${Math.round(t.pro)}g pro · ${m.ingredients.length} ingredients`; })()}</div>
+                  <div className="lib-item-name"><span style={{display:'inline-block',width:8,height:8,borderRadius:'50%',background:dotCol,marginRight:6,verticalAlign:'middle'}} />{m.name}<span className={`badge badge-${m.category}`}>{m.category}</span></div>
+                  <div className="lib-item-meta">{Math.round(t.cal)} kcal · {Math.round(t.pro)}g pro · {m.ingredients.length} ingredients</div>
                 </div>
                 <div className="lib-item-actions">
                   <button className="btn btn-secondary btn-sm" onClick={() => {setEditing(m);setModal('meal');}}>Edit</button>
@@ -706,7 +711,7 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals }) {
                 return d ? <span key={i} className="tag">{displayName(d)} · {ing.serving} {ing.unit}</span> : null;
               })}</div>
             </div>
-          ))}
+          ); })}
         </>}
       </div>
 
@@ -716,7 +721,7 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals }) {
       </div>
 
       {modal==='ing' && <IngredientModal initial={editing} onSave={ing => { if(editing) setIngredients(p=>p.map(i=>i.id===editing.id?{...ing,id:editing.id}:i)); else setIngredients(p=>[...p,{...ing,id:uid()}]); setModal(null); }} onClose={() => setModal(null)} />}
-      {modal==='meal' && <MealModal initial={editing} ingredients={ingredients} onSave={m => { if(editing) setMeals(p=>p.map(x=>x.id===editing.id?{...m,id:editing.id}:x)); else setMeals(p=>[...p,{...m,id:uid()}]); setModal(null); }} onClose={() => setModal(null)} />}
+      {modal==='meal' && <MealModal initial={editing} ingredients={ingredients} settings={settings} onSave={m => { if(editing) setMeals(p=>p.map(x=>x.id===editing.id?{...m,id:editing.id}:x)); else setMeals(p=>[...p,{...m,id:uid()}]); setModal(null); }} onClose={() => setModal(null)} />}
     </div>
   );
 }
@@ -753,7 +758,7 @@ function IngredientModal({ initial, onSave, onClose }) {
   );
 }
 
-function MealModal({ initial, ingredients, onSave, onClose }) {
+function MealModal({ initial, ingredients, settings, onSave, onClose }) {
   const [name, setName] = useState(initial?.name||'');
   const [category, setCategory] = useState(initial?.category||'meal');
   const [mealIngs, setMealIngs] = useState(initial?.ingredients||[]);
@@ -797,18 +802,18 @@ function MealModal({ initial, ingredients, onSave, onClose }) {
               <input className="input" placeholder="Search ingredients..." value={ingSearch} onChange={e=>setIngSearch(e.target.value)} style={{marginBottom:10}} />
               <div style={{height:160,overflowY:'auto'}}>
                 {filteredPickIngs.length===0 && <p style={{fontSize:13,color:'var(--text-muted)',textAlign:'center',padding:'8px 0'}}>No matches</p>}
-                {filteredPickIngs.map(i => (
+                {filteredPickIngs.map(i => { const tR = settings.calories>0 ? (settings.protein*4)/settings.calories : 0; const iR = i.caloriesPer100>0 ? (i.proteinPer100*4)/i.caloriesPer100 : 0; const p = tR>0 ? iR/tR : 1; const dc = p>=1?'var(--green)':p>=0.7?'var(--amber)':'var(--red)'; return (
                   <button key={i.id} className="lib-item" style={{width:'100%',textAlign:'left',padding:'8px 10px',marginBottom:4}} onClick={()=>{
                     setPickId(i.id);
                     setPickServing(String(i.defaultServing||100));
                     setPickUnit(i.defaultUnit||'g');
                   }}>
                     <div className="lib-item-info">
-                      <div style={{fontSize:13,fontWeight:500}}>{displayName(i)}</div>
+                      <div style={{fontSize:13,fontWeight:500}}><span style={{display:'inline-block',width:8,height:8,borderRadius:'50%',background:dc,marginRight:6,verticalAlign:'middle'}} />{displayName(i)}</div>
                     </div>
                     <span style={{color:'var(--green)',fontSize:16}}>›</span>
                   </button>
-                ))}
+                ); })}
               </div>
               <button className="btn btn-secondary btn-sm" style={{width:'100%',marginTop:8}} onClick={()=>{setAdding(false);setIngSearch('');}}>Cancel</button>
             </>) : (<>
