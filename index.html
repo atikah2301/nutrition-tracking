@@ -1292,7 +1292,7 @@ function SettingsScreen({ settings, setSettings, theme, setTheme, user }) {
   const signInGoogle = async () => {
     if (!auth || !googleProvider) return;
     setAuthError('');
-    try { await auth.signInWithPopup(googleProvider); } catch (e) { setAuthError(e.message); }
+    try { await auth.signInWithRedirect(googleProvider); } catch (e) { setAuthError(e.message); }
   };
   const signInEmail = async () => {
     if (!auth || !email || !password) return;
