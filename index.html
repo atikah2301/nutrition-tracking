@@ -8,6 +8,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <style>
     :root {
       --bg: #0f0f0f;
@@ -140,7 +141,7 @@ const numInput = (setter) => ({
 });
 
 function App() {
-  const [tab, setTab] = useState('log');
+  const [tab, setTab] = useState('dash');
   const [ingredients, setIngredients] = useState(() => load('ing_v1', []));
   const [meals, setMeals] = useState(() => load('meals_v1', []));
   const [log, setLog] = useState(() => load('log_v1', {}));
@@ -157,17 +158,189 @@ function App() {
 
   return (
     <div className="app">
+      {tab === 'dash' && <DashScreen {...p} />}
       {tab === 'log' && <LogScreen {...p} />}
       {tab === 'library' && <LibraryScreen {...p} />}
       {tab === 'weight' && <WeightScreen {...p} />}
       {tab === 'settings' && <SettingsScreen {...p} />}
       <nav className="tabs">
-        {[['log','📋','Log'],['library','🍳','Library'],['weight','⚖️','Weight'],['settings','⚙️','Settings']].map(([id,icon,label]) => (
+        {[['dash','📊','Dashboard'],['log','📋','Log'],['library','🍳','Library'],['weight','⚖️','Weight'],['settings','⚙️','Settings']].map(([id,icon,label]) => (
           <button key={id} className={`tab ${tab===id?'active':''}`} onClick={() => setTab(id)}>
             <span className="tab-icon">{icon}</span>{label}
           </button>
         ))}
       </nav>
+    </div>
+  );
+}
+
+// ─── DASHBOARD ──────────────────────────────────────────────
+function DashChart({ label, data, color, targetValue, targetMode, unit }) {
+  const canvasRef = React.useRef(null);
+  const chartRef = React.useRef(null);
+
+  useEffect(() => {
+    if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; }
+    if (!data || data.length === 0) return;
+
+    const ctx = canvasRef.current.getContext('2d');
+    const labels = data.map(d => {
+      const dt = new Date(d.date + 'T12:00:00');
+      return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    });
+    const values = data.map(d => d.value);
+
+    const datasets = [];
+
+    // Target band
+    if (targetValue != null) {
+      const maxVal = Math.max(...values, targetValue) * 1.3;
+      if (targetMode === 'max') {
+        // Calories: good zone is 0 to target
+        datasets.push({
+          label: 'Target zone',
+          data: labels.map(() => targetValue),
+          fill: { target: 'origin' },
+          backgroundColor: 'rgba(182,243,106,0.08)',
+          borderColor: 'rgba(182,243,106,0.3)',
+          borderWidth: 1,
+          borderDash: [6, 4],
+          pointRadius: 0,
+          pointHitRadius: 0,
+          tension: 0,
+        });
+      } else {
+        // Protein: good zone is target to top
+        datasets.push({
+          label: 'Target zone',
+          data: labels.map(() => targetValue),
+          fill: { target: { value: maxVal } },
+          backgroundColor: 'rgba(182,243,106,0.08)',
+          borderColor: 'rgba(182,243,106,0.3)',
+          borderWidth: 1,
+          borderDash: [6, 4],
+          pointRadius: 0,
+          pointHitRadius: 0,
+          tension: 0,
+        });
+      }
+    }
+
+    // Main data line
+    datasets.push({
+      label,
+      data: values,
+      borderColor: color,
+      backgroundColor: color,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      borderWidth: 2,
+      tension: 0.3,
+      fill: false,
+    });
+
+    chartRef.current = new Chart(ctx, {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1a1a1a',
+            borderColor: '#2e2e2e',
+            borderWidth: 1,
+            titleColor: '#999',
+            bodyColor: '#f0f0f0',
+            bodyFont: { family: "'DM Mono', monospace" },
+            callbacks: {
+              label: (ctx) => ctx.dataset.label === 'Target zone' ? null : `${Math.round(ctx.parsed.y * 10) / 10} ${unit}`,
+            },
+            filter: (item) => item.dataset.label !== 'Target zone',
+          },
+        },
+        scales: {
+          x: {
+            ticks: { color: '#666', font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 7 },
+            grid: { color: '#2e2e2e' },
+            border: { color: '#2e2e2e' },
+          },
+          y: {
+            ticks: { color: '#666', font: { family: "'DM Mono', monospace", size: 11 } },
+            grid: { color: '#2e2e2e' },
+            border: { color: '#2e2e2e' },
+            beginAtZero: targetValue != null,
+          },
+        },
+      },
+    });
+
+    return () => { if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; } };
+  }, [data, color, targetValue, targetMode, label, unit]);
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="card">
+        <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>{label}</div>
+        <p className="empty" style={{padding:'20px 0'}}>No data for this period.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card">
+      <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>{label}</div>
+      <div style={{height:180}}>
+        <canvas ref={canvasRef} />
+      </div>
+    </div>
+  );
+}
+
+function DashScreen({ log, weights, settings }) {
+  const [range, setRange] = useState('1M');
+
+  const filterByRange = (items) => {
+    if (range === 'All') return items;
+    const now = new Date();
+    const cutoff = new Date();
+    if (range === '1W') cutoff.setDate(now.getDate() - 7);
+    else if (range === '1M') cutoff.setMonth(now.getMonth() - 1);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+    return items.filter(d => d.date >= cutoffStr);
+  };
+
+  // Weight data
+  const weightData = filterByRange(
+    [...weights].sort((a, b) => a.date.localeCompare(b.date)).map(w => ({ date: w.date, value: w.kg }))
+  );
+
+  // Calorie & protein daily totals
+  const dailyTotals = Object.entries(log)
+    .map(([date, entries]) => ({
+      date,
+      cal: entries.reduce((s, e) => s + e.calories, 0),
+      pro: entries.reduce((s, e) => s + e.protein, 0),
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const filteredTotals = filterByRange(dailyTotals);
+  const calData = filteredTotals.map(d => ({ date: d.date, value: Math.round(d.cal) }));
+  const proData = filteredTotals.map(d => ({ date: d.date, value: Math.round(d.pro) }));
+
+  return (
+    <div className="screen">
+      <div className="screen-title">Dashboard</div>
+      <div className="chips" style={{marginBottom:18}}>
+        {['1W','1M','All'].map(r => (
+          <button key={r} className={`chip ${range===r?'selected':''}`} onClick={() => setRange(r)}>{r}</button>
+        ))}
+      </div>
+      <DashChart label="Weight (kg)" data={weightData} color="#b6f36a" unit="kg" />
+      <DashChart label="Calories (kcal)" data={calData} color="#ffc94d" targetValue={settings.calories} targetMode="max" unit="kcal" />
+      <DashChart label="Protein (g)" data={proData} color="#6ab8f3" targetValue={settings.protein} targetMode="min" unit="g" />
     </div>
   );
 }
