@@ -694,7 +694,7 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals }) {
               <div style={{display:'flex',width:'100%',alignItems:'center',gap:10}}>
                 <div className="lib-item-info">
                   <div className="lib-item-name">{m.name}<span className={`badge badge-${m.category}`}>{m.category}</span></div>
-                  <div className="lib-item-meta">{m.ingredients.length} ingredients</div>
+                  <div className="lib-item-meta">{(() => { const t = m.ingredients.reduce((a,ing) => { const d = ingredients.find(x=>x.id===ing.id); if(!d) return a; const f = parseFloat(ing.serving)/100; return { cal: a.cal+d.caloriesPer100*f, pro: a.pro+d.proteinPer100*f }; }, {cal:0,pro:0}); return `${Math.round(t.cal)} kcal · ${Math.round(t.pro)}g pro · ${m.ingredients.length} ingredients`; })()}</div>
                 </div>
                 <div className="lib-item-actions">
                   <button className="btn btn-secondary btn-sm" onClick={() => {setEditing(m);setModal('meal');}}>Edit</button>
