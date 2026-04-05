@@ -598,7 +598,7 @@ function LogModal({ category, ingredients, meals, onAdd, onClose }) {
           <input className="input" placeholder="Search ingredients..." value={search} onChange={e => setSearch(e.target.value)} style={{marginBottom:14}} />
           <div style={{height:320,overflowY:'auto'}}>
             {composites.length > 0 && <>
-              <div className="section-label" style={{marginTop:0}}>Saved {category==='meal'?'Meals':'Snack Groups'}</div>
+              <div className="section-label" style={{marginTop:0}}>Saved Composites</div>
               {composites.map(m => (
                 <button key={m.id} className="lib-item" style={{width:'100%',textAlign:'left'}} onClick={() => logComposite(m)}>
                   <div className="lib-item-info">
@@ -666,7 +666,7 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals }) {
         <div className="screen-title">Library</div>
         <div className="chips">
           <button className={`chip ${view==='ingredients'?'selected':''}`} onClick={() => setView('ingredients')}>Ingredients</button>
-          <button className={`chip ${view==='meals'?'selected':''}`} onClick={() => setView('meals')}>Composite Meals</button>
+          <button className={`chip ${view==='meals'?'selected':''}`} onClick={() => setView('meals')}>Composites</button>
         </div>
       </div>
 
@@ -688,7 +688,7 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals }) {
         </>}
 
         {view === 'meals' && <>
-          {meals.length===0 && <p className="empty">No composite meals yet.<br/>Combine ingredients into saved meals like "Spinach & Egg Breakfast".</p>}
+          {meals.length===0 && <p className="empty">No composites yet.<br/>Combine ingredients into saved combos like "Spinach & Egg Breakfast" or "Protein Shake".</p>}
           {meals.map(m => (
             <div key={m.id} className="lib-item" style={{flexDirection:'column',alignItems:'flex-start',gap:8}}>
               <div style={{display:'flex',width:'100%',alignItems:'center',gap:10}}>
@@ -712,7 +712,7 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals }) {
 
       <div style={{padding:'12px 16px', paddingBottom:`calc(var(--tab-height) + 16px)`, flexShrink:0, background:'var(--bg)'}}>
         {view === 'ingredients' && <button className="btn btn-primary" onClick={() => {setEditing(null);setModal('ing');}}>+ New Ingredient</button>}
-        {view === 'meals' && <button className="btn btn-primary" onClick={() => {setEditing(null);setModal('meal');}}>+ New Composite Meal</button>}
+        {view === 'meals' && <button className="btn btn-primary" onClick={() => {setEditing(null);setModal('meal');}}>+ New Composite</button>}
       </div>
 
       {modal==='ing' && <IngredientModal initial={editing} onSave={ing => { if(editing) setIngredients(p=>p.map(i=>i.id===editing.id?{...ing,id:editing.id}:i)); else setIngredients(p=>[...p,{...ing,id:uid()}]); setModal(null); }} onClose={() => setModal(null)} />}
@@ -777,7 +777,7 @@ function MealModal({ initial, ingredients, onSave, onClose }) {
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={e=>e.stopPropagation()}>
         <button className="modal-close" onClick={onClose}>✕</button>
-        <div className="modal-title">{initial?'Edit':'New'} Composite Meal</div>
+        <div className="modal-title">{initial?'Edit':'New'} Composite</div>
         <div className="field"><label>Name</label><input className="input" placeholder="e.g. Spinach & Egg Breakfast" value={name} onChange={e=>setName(e.target.value)} /></div>
         <div className="field">
           <label>Category</label>
