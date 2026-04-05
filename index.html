@@ -587,52 +587,59 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals }) {
   const [editing, setEditing] = useState(null);
 
   return (
-    <div className="screen">
-      <div className="screen-title">Library</div>
-      <div className="chips">
-        <button className={`chip ${view==='ingredients'?'selected':''}`} onClick={() => setView('ingredients')}>Ingredients</button>
-        <button className={`chip ${view==='meals'?'selected':''}`} onClick={() => setView('meals')}>Composite Meals</button>
+    <div style={{display:'flex', flexDirection:'column', height:'100%', overflow:'hidden'}}>
+      <div style={{padding:'20px 16px 0', flexShrink:0}}>
+        <div className="screen-title">Library</div>
+        <div className="chips">
+          <button className={`chip ${view==='ingredients'?'selected':''}`} onClick={() => setView('ingredients')}>Ingredients</button>
+          <button className={`chip ${view==='meals'?'selected':''}`} onClick={() => setView('meals')}>Composite Meals</button>
+        </div>
       </div>
 
-      {view === 'ingredients' && <>
-        {ingredients.length===0 && <p className="empty">No ingredients yet.<br/>Add foods with their per-100g nutrition values.</p>}
-        {ingredients.map(ing => (
-          <div key={ing.id} className="lib-item">
-            <div className="lib-item-info">
-              <div className="lib-item-name">{displayName(ing)}</div>
-              <div className="lib-item-meta">{ing.caloriesPer100} kcal · {ing.proteinPer100}g pro / 100{ing.defaultUnit==='ml'?'ml':'g'}{ing.defaultServing?` · default: ${ing.defaultServing} ${ing.defaultUnit||'g'}`:''}</div>
-            </div>
-            <div className="lib-item-actions">
-              <button className="btn btn-secondary btn-sm" onClick={() => {setEditing(ing);setModal('ing');}}>Edit</button>
-              <button className="btn btn-danger btn-sm" onClick={() => setIngredients(p=>p.filter(i=>i.id!==ing.id))}>✕</button>
-            </div>
-          </div>
-        ))}
-        <button className="btn btn-primary" style={{marginTop:12}} onClick={() => {setEditing(null);setModal('ing');}}>+ New Ingredient</button>
-      </>}
-
-      {view === 'meals' && <>
-        {meals.length===0 && <p className="empty">No composite meals yet.<br/>Combine ingredients into saved meals like "Spinach & Egg Breakfast".</p>}
-        {meals.map(m => (
-          <div key={m.id} className="lib-item" style={{flexDirection:'column',alignItems:'flex-start',gap:8}}>
-            <div style={{display:'flex',width:'100%',alignItems:'center',gap:10}}>
+      <div style={{flex:1, overflowY:'auto', padding:'0 16px'}}>
+        {view === 'ingredients' && <>
+          {ingredients.length===0 && <p className="empty">No ingredients yet.<br/>Add foods with their per-100g nutrition values.</p>}
+          {ingredients.map(ing => (
+            <div key={ing.id} className="lib-item">
               <div className="lib-item-info">
-                <div className="lib-item-name">{m.name}<span className={`badge badge-${m.category}`}>{m.category}</span></div>
-                <div className="lib-item-meta">{m.ingredients.length} ingredients</div>
+                <div className="lib-item-name">{displayName(ing)}</div>
+                <div className="lib-item-meta">{ing.caloriesPer100} kcal · {ing.proteinPer100}g pro / 100{ing.defaultUnit==='ml'?'ml':'g'}{ing.defaultServing?` · default: ${ing.defaultServing} ${ing.defaultUnit||'g'}`:''}</div>
               </div>
               <div className="lib-item-actions">
-                <button className="btn btn-secondary btn-sm" onClick={() => {setEditing(m);setModal('meal');}}>Edit</button>
-                <button className="btn btn-danger btn-sm" onClick={() => setMeals(p=>p.filter(x=>x.id!==m.id))}>✕</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => {setEditing(ing);setModal('ing');}}>Edit</button>
+                <button className="btn btn-danger btn-sm" onClick={() => setIngredients(p=>p.filter(i=>i.id!==ing.id))}>✕</button>
               </div>
             </div>
-            <div>{m.ingredients.map((ing,i) => {
-              const d = ingredients.find(x=>x.id===ing.id);
-              return d ? <span key={i} className="tag">{displayName(d)} · {ing.serving} {ing.unit}</span> : null;
-            })}</div>
-          </div>
-        ))}
-        <button className="btn btn-primary" style={{marginTop:12}} onClick={() => {setEditing(null);setModal('meal');}}>+ New Composite Meal</button>
-      </>}
+          ))}
+        </>}
+
+        {view === 'meals' && <>
+          {meals.length===0 && <p className="empty">No composite meals yet.<br/>Combine ingredients into saved meals like "Spinach & Egg Breakfast".</p>}
+          {meals.map(m => (
+            <div key={m.id} className="lib-item" style={{flexDirection:'column',alignItems:'flex-start',gap:8}}>
+              <div style={{display:'flex',width:'100%',alignItems:'center',gap:10}}>
+                <div className="lib-item-info">
+                  <div className="lib-item-name">{m.name}<span className={`badge badge-${m.category}`}>{m.category}</span></div>
+                  <div className="lib-item-meta">{m.ingredients.length} ingredients</div>
+                </div>
+                <div className="lib-item-actions">
+                  <button className="btn btn-secondary btn-sm" onClick={() => {setEditing(m);setModal('meal');}}>Edit</button>
+                  <button className="btn btn-danger btn-sm" onClick={() => setMeals(p=>p.filter(x=>x.id!==m.id))}>✕</button>
+                </div>
+              </div>
+              <div>{m.ingredients.map((ing,i) => {
+                const d = ingredients.find(x=>x.id===ing.id);
+                return d ? <span key={i} className="tag">{displayName(d)} · {ing.serving} {ing.unit}</span> : null;
+              })}</div>
+            </div>
+          ))}
+        </>}
+      </div>
+
+      <div style={{padding:'12px 16px', paddingBottom:`calc(var(--tab-height) + 16px)`, flexShrink:0, background:'var(--bg)'}}>
+        {view === 'ingredients' && <button className="btn btn-primary" onClick={() => {setEditing(null);setModal('ing');}}>+ New Ingredient</button>}
+        {view === 'meals' && <button className="btn btn-primary" onClick={() => {setEditing(null);setModal('meal');}}>+ New Composite Meal</button>}
+      </div>
 
       {modal==='ing' && <IngredientModal initial={editing} onSave={ing => { if(editing) setIngredients(p=>p.map(i=>i.id===editing.id?{...ing,id:editing.id}:i)); else setIngredients(p=>[...p,{...ing,id:uid()}]); setModal(null); }} onClose={() => setModal(null)} />}
       {modal==='meal' && <MealModal initial={editing} ingredients={ingredients} onSave={m => { if(editing) setMeals(p=>p.map(x=>x.id===editing.id?{...m,id:editing.id}:x)); else setMeals(p=>[...p,{...m,id:uid()}]); setModal(null); }} onClose={() => setModal(null)} />}
