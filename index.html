@@ -117,6 +117,13 @@
 
     .divider { height: 1px; background: var(--border); margin: 16px 0; }
     .tag { display: inline-block; font-size: 11px; background: var(--surface2); border-radius: 6px; padding: 2px 6px; color: var(--text-dim); margin: 2px 2px 2px 0; }
+
+    .status-row { display: flex; gap: 8px; margin-bottom: 16px; }
+    .status-card { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 10px; text-align: center; }
+    .status-dot { width: 10px; height: 10px; border-radius: 99px; margin: 0 auto 8px; }
+    .status-label { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; }
+    .status-value { font-size: 14px; font-weight: 700; font-family: var(--mono); }
+    .status-hint { font-size: 10px; color: var(--text-dim); margin-top: 4px; }
   </style>
 </head>
 <body>
@@ -371,20 +378,80 @@ function DashScreen({ log, weights, settings }) {
   const calData = filteredTotals.map(d => ({ date: d.date, value: Math.round(d.cal) }));
   const proData = filteredTotals.map(d => ({ date: d.date, value: Math.round(d.pro) }));
 
+  // Status indicators
+  const calStatus = (() => {
+    if (filteredTotals.length === 0) return null;
+    const avg = filteredTotals.reduce((s, d) => s + d.cal, 0) / filteredTotals.length;
+    const ratio = avg / settings.calories;
+    const color = ratio <= 1 ? 'var(--green)' : ratio <= 1.2 ? 'var(--amber)' : 'var(--red)';
+    const hint = ratio <= 1 ? 'On track' : ratio <= 1.2 ? 'Slightly over' : 'Over target';
+    return { value: `${Math.round(avg)} kcal`, color, hint };
+  })();
+
+  const proStatus = (() => {
+    if (filteredTotals.length === 0) return null;
+    const avg = filteredTotals.reduce((s, d) => s + d.pro, 0) / filteredTotals.length;
+    const ratio = avg / settings.protein;
+    const color = ratio >= 1 ? 'var(--green)' : ratio >= 0.7 ? 'var(--amber)' : 'var(--red)';
+    const hint = ratio >= 1 ? 'On track' : ratio >= 0.7 ? 'Needs focus' : 'Under target';
+    return { value: `${Math.round(avg)}g`, color, hint };
+  })();
+
+  const weightStatus = (() => {
+    if (weightData.length === 0 || !weightTrend) return null;
+    const latest = weightData[weightData.length - 1];
+    const trendPt = weightTrend.find(t => t.date === latest.date);
+    if (!trendPt || trendPt.value === null) return null;
+    const diff = latest.value - trendPt.value;
+    const isLose = settings.weightMode === 'lose';
+    const directed = isLose ? diff : -diff; // positive = bad direction
+    const color = directed <= 0 ? 'var(--green)' : directed <= 1 ? 'var(--amber)' : 'var(--red)';
+    const hint = directed <= 0 ? 'On track' : directed <= 1 ? 'Slightly off' : 'Off target';
+    return { value: `${latest.value} kg`, color, hint };
+  })();
+
   return (
     <div style={{display:'flex', flexDirection:'column', height:'100%', overflow:'hidden'}}>
       <div style={{padding:'20px 16px 0', flexShrink:0}}>
         <div className="screen-title">Dashboard</div>
-        <div className="chips" style={{marginBottom:18}}>
+        <div className="chips" style={{marginBottom:14}}>
           {['1W','1M','All'].map(r => (
             <button key={r} className={`chip ${range===r?'selected':''}`} onClick={() => setRange(r)}>{r}</button>
           ))}
         </div>
+        {(weightStatus || calStatus || proStatus) && (
+          <div className="status-row">
+            {weightStatus && (
+              <div className="status-card">
+                <div className="status-dot" style={{background:weightStatus.color}} />
+                <div className="status-label">Weight</div>
+                <div className="status-value">{weightStatus.value}</div>
+                <div className="status-hint" style={{color:weightStatus.color}}>{weightStatus.hint}</div>
+              </div>
+            )}
+            {calStatus && (
+              <div className="status-card">
+                <div className="status-dot" style={{background:calStatus.color}} />
+                <div className="status-label">Calories</div>
+                <div className="status-value">{calStatus.value}</div>
+                <div className="status-hint" style={{color:calStatus.color}}>{calStatus.hint}</div>
+              </div>
+            )}
+            {proStatus && (
+              <div className="status-card">
+                <div className="status-dot" style={{background:proStatus.color}} />
+                <div className="status-label">Protein</div>
+                <div className="status-value">{proStatus.value}</div>
+                <div className="status-hint" style={{color:proStatus.color}}>{proStatus.hint}</div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
       <div style={{flex:1, overflowY:'auto', padding:'0 16px', paddingBottom:`calc(var(--tab-height) + 16px)`}}>
-        <DashChart label="Weight (kg)" data={weightData} color="#b6f36a" unit="kg" trendLine={weightTrend} />
-        <DashChart label="Calories (kcal)" data={calData} color="#ffc94d" targetValue={settings.calories} targetMode="max" unit="kcal" />
-        <DashChart label="Protein (g)" data={proData} color="#6ab8f3" targetValue={settings.protein} targetMode="min" unit="g" />
+        <DashChart label="Weight (kg)" data={weightData} color="#c4a8ff" unit="kg" trendLine={weightTrend} />
+        <DashChart label="Calories (kcal)" data={calData} color="#f0a0b0" targetValue={settings.calories} targetMode="max" unit="kcal" />
+        <DashChart label="Protein (g)" data={proData} color="#7ecfc0" targetValue={settings.protein} targetMode="min" unit="g" />
       </div>
     </div>
   );
