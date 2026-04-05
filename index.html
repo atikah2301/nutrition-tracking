@@ -142,6 +142,7 @@ const fmt = (d) => {
   return new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 };
 const displayName = (ing) => ing.brand ? `${ing.name} (${ing.brand})` : ing.name;
+const matchesSearch = (ing, q) => { if (!q) return true; const l = q.toLowerCase(); return ing.name.toLowerCase().includes(l) || (ing.brand && ing.brand.toLowerCase().includes(l)); };
 const numInput = (setter) => ({
   onChange: e => { const v = e.target.value; if (v === '' || /^\d*\.?\d?$/.test(v)) setter(v); },
   onBlur: e => { const v = e.target.value; if (v && !isNaN(v)) setter(parseFloat(v).toFixed(v.includes('.') ? 1 : 0)); },
@@ -548,8 +549,10 @@ function LogModal({ category, ingredients, meals, onAdd, onClose }) {
   const [selected, setSelected] = useState(null);
   const [qty, setQty] = useState('');
   const [unit, setUnit] = useState('g');
+  const [search, setSearch] = useState('');
 
-  const composites = meals.filter(m => m.category === category);
+  const composites = meals.filter(m => m.category === category && (!search || m.name.toLowerCase().includes(search.toLowerCase())));
+  const filteredIngs = ingredients.filter(ing => matchesSearch(ing, search));
 
   const logComposite = (m) => {
     const ings = m.ingredients.map(ing => {
@@ -592,30 +595,34 @@ function LogModal({ category, ingredients, meals, onAdd, onClose }) {
         <div className="modal-title">Add {category==='meal'?'Meal':'Snack'}</div>
 
         {mode === 'pick' && <>
-          {composites.length > 0 && <>
-            <div className="section-label" style={{marginTop:0}}>Saved {category==='meal'?'Meals':'Snack Groups'}</div>
-            {composites.map(m => (
-              <button key={m.id} className="lib-item" style={{width:'100%',textAlign:'left'}} onClick={() => logComposite(m)}>
+          <input className="input" placeholder="Search ingredients..." value={search} onChange={e => setSearch(e.target.value)} style={{marginBottom:14}} />
+          <div style={{height:320,overflowY:'auto'}}>
+            {composites.length > 0 && <>
+              <div className="section-label" style={{marginTop:0}}>Saved {category==='meal'?'Meals':'Snack Groups'}</div>
+              {composites.map(m => (
+                <button key={m.id} className="lib-item" style={{width:'100%',textAlign:'left'}} onClick={() => logComposite(m)}>
+                  <div className="lib-item-info">
+                    <div className="lib-item-name">{m.name}</div>
+                    <div className="lib-item-meta">{m.ingredients.length} ingredients</div>
+                  </div>
+                  <span style={{color:'var(--green)',fontSize:20}}>›</span>
+                </button>
+              ))}
+              <div className="divider" />
+            </>}
+            <div className="section-label" style={{marginTop:0}}>Individual Ingredients</div>
+            {ingredients.length===0 && !search && <p className="empty" style={{padding:'16px 0'}}>No ingredients yet — add them in the Library tab first.</p>}
+            {filteredIngs.length===0 && search && <p style={{fontSize:13,color:'var(--text-muted)',padding:'16px 0',textAlign:'center'}}>No ingredients match "{search}"</p>}
+            {filteredIngs.map(ing => (
+              <button key={ing.id} className="lib-item" style={{width:'100%',textAlign:'left'}} onClick={() => pickIng(ing)}>
                 <div className="lib-item-info">
-                  <div className="lib-item-name">{m.name}</div>
-                  <div className="lib-item-meta">{m.ingredients.length} ingredients</div>
+                  <div className="lib-item-name">{displayName(ing)}</div>
+                  <div className="lib-item-meta">{ing.caloriesPer100} kcal · {ing.proteinPer100}g pro / 100{ing.defaultUnit==='ml'?'ml':'g'}</div>
                 </div>
                 <span style={{color:'var(--green)',fontSize:20}}>›</span>
               </button>
             ))}
-            <div className="divider" />
-          </>}
-          <div className="section-label" style={{marginTop:0}}>Individual Ingredients</div>
-          {ingredients.length===0 && <p className="empty" style={{padding:'16px 0'}}>No ingredients yet — add them in the Library tab first.</p>}
-          {ingredients.map(ing => (
-            <button key={ing.id} className="lib-item" style={{width:'100%',textAlign:'left'}} onClick={() => pickIng(ing)}>
-              <div className="lib-item-info">
-                <div className="lib-item-name">{displayName(ing)}</div>
-                <div className="lib-item-meta">{ing.caloriesPer100} kcal · {ing.proteinPer100}g pro / 100{ing.defaultUnit==='ml'?'ml':'g'}</div>
-              </div>
-              <span style={{color:'var(--green)',fontSize:20}}>›</span>
-            </button>
-          ))}
+          </div>
         </>}
 
         {mode === 'ingredient' && selected && <>
@@ -754,12 +761,15 @@ function MealModal({ initial, ingredients, onSave, onClose }) {
   const [pickId, setPickId] = useState('');
   const [pickServing, setPickServing] = useState('');
   const [pickUnit, setPickUnit] = useState('g');
+  const [ingSearch, setIngSearch] = useState('');
 
   const addIng = () => {
     if (!pickId||!pickServing) return;
     setMealIngs(p=>[...p,{id:pickId,serving:parseFloat(pickServing),unit:pickUnit}]);
-    setPickId(''); setPickServing(''); setPickUnit('g'); setAdding(false);
+    setPickId(''); setPickServing(''); setPickUnit('g'); setIngSearch(''); setAdding(false);
   };
+
+  const filteredPickIngs = ingredients.filter(ing => matchesSearch(ing, ingSearch));
 
   const valid = name && mealIngs.length > 0;
 
@@ -783,25 +793,35 @@ function MealModal({ initial, ingredients, onSave, onClose }) {
         })}
         {adding ? (
           <div className="card">
-            <div className="field">
-              <label>Ingredient</label>
-              <select className="input" value={pickId} onChange={e=>{
-                setPickId(e.target.value);
-                const ing=ingredients.find(i=>i.id===e.target.value);
-                if(ing){setPickServing(String(ing.defaultServing||100));setPickUnit(ing.defaultUnit||'g');}
-              }}>
-                <option value="">Select...</option>
-                {ingredients.map(i=><option key={i.id} value={i.id}>{displayName(i)}</option>)}
-              </select>
-            </div>
-            <div className="input-row">
-              <div className="field"><label>Amount</label><input className="input" type="text" inputMode="decimal" placeholder="80" value={pickServing} {...numInput(setPickServing)} /></div>
-              <div className="field"><label>Unit</label><select className="input" value={pickUnit} onChange={e=>setPickUnit(e.target.value)}><option value="g">g</option><option value="ml">ml</option></select></div>
-            </div>
-            <div style={{display:'flex',gap:8}}>
-              <button className="btn btn-primary" style={{flex:1}} onClick={addIng}>Add</button>
-              <button className="btn btn-secondary" style={{flex:1}} onClick={()=>setAdding(false)}>Cancel</button>
-            </div>
+            {!pickId ? (<>
+              <input className="input" placeholder="Search ingredients..." value={ingSearch} onChange={e=>setIngSearch(e.target.value)} style={{marginBottom:10}} />
+              <div style={{height:160,overflowY:'auto'}}>
+                {filteredPickIngs.length===0 && <p style={{fontSize:13,color:'var(--text-muted)',textAlign:'center',padding:'8px 0'}}>No matches</p>}
+                {filteredPickIngs.map(i => (
+                  <button key={i.id} className="lib-item" style={{width:'100%',textAlign:'left',padding:'8px 10px',marginBottom:4}} onClick={()=>{
+                    setPickId(i.id);
+                    setPickServing(String(i.defaultServing||100));
+                    setPickUnit(i.defaultUnit||'g');
+                  }}>
+                    <div className="lib-item-info">
+                      <div style={{fontSize:13,fontWeight:500}}>{displayName(i)}</div>
+                    </div>
+                    <span style={{color:'var(--green)',fontSize:16}}>›</span>
+                  </button>
+                ))}
+              </div>
+              <button className="btn btn-secondary btn-sm" style={{width:'100%',marginTop:8}} onClick={()=>{setAdding(false);setIngSearch('');}}>Cancel</button>
+            </>) : (<>
+              <div style={{fontSize:14,fontWeight:600,marginBottom:10}}>{displayName(ingredients.find(i=>i.id===pickId))}</div>
+              <div className="input-row">
+                <div className="field"><label>Amount</label><input className="input" type="text" inputMode="decimal" placeholder="80" value={pickServing} {...numInput(setPickServing)} /></div>
+                <div className="field"><label>Unit</label><select className="input" value={pickUnit} onChange={e=>setPickUnit(e.target.value)}><option value="g">g</option><option value="ml">ml</option></select></div>
+              </div>
+              <div style={{display:'flex',gap:8}}>
+                <button className="btn btn-primary" style={{flex:1}} onClick={addIng}>Add</button>
+                <button className="btn btn-secondary" style={{flex:1}} onClick={()=>{setPickId('');setIngSearch('');}}>Back</button>
+              </div>
+            </>)}
           </div>
         ):(
           <button className="btn btn-secondary btn-sm" style={{width:'100%',marginBottom:16}} onClick={()=>setAdding(true)}>+ Add Ingredient</button>
