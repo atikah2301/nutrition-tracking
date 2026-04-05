@@ -524,65 +524,92 @@ function MealModal({ initial, ingredients, onSave, onClose }) {
 
 // ─── WEIGHT ──────────────────────────────────────────────────
 function WeightScreen({ weights, setWeights }) {
-  const [kg, setKg] = useState('');
+  const latest = weights[0];
+  const [kg, setKg] = useState(latest ? String(latest.kg) : '');
   const [date, setDate] = useState(today());
+  const [toast, setToast] = useState(null); // { msg, updated }
+  const toastTimer = React.useRef(null);
 
   const logWeight = () => {
-    if (!kg||isNaN(kg)) return;
-    const entry = { id:uid(), date, kg:parseFloat(parseFloat(kg).toFixed(1)) };
-    setWeights(prev => [...prev.filter(w=>w.date!==date), entry].sort((a,b)=>b.date.localeCompare(a.date)));
-    setKg('');
+    if (!kg || isNaN(kg)) return;
+    const rounded = parseFloat(parseFloat(kg).toFixed(1));
+    const entry = { id: uid(), date, kg: rounded };
+    const isUpdate = weights.some(w => w.date === date);
+    setWeights(prev => {
+      const without = prev.filter(w => w.date !== date);
+      return [entry, ...without].sort((a, b) => b.date.localeCompare(a.date));
+    });
+    clearTimeout(toastTimer.current);
+    setToast({ msg: isUpdate ? `Entry updated for ${fmt(date)}` : `New entry added for ${fmt(date)}`, updated: isUpdate });
+    toastTimer.current = setTimeout(() => setToast(null), 3000);
   };
 
-  const latest = weights[0];
   const prev = weights[1];
-  const diff = latest&&prev ? (latest.kg-prev.kg).toFixed(1) : null;
+  const diff = latest && prev ? (latest.kg - prev.kg).toFixed(1) : null;
 
   return (
-    <div className="screen">
-      <div className="screen-title">Weight</div>
-      {latest && (
-        <div className="card" style={{marginBottom:20,textAlign:'center'}}>
-          <div style={{fontSize:11,color:'var(--text-muted)',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>Latest</div>
-          <div style={{fontSize:52,fontWeight:700,fontFamily:'var(--mono)',color:'var(--green)',lineHeight:1}}>{latest.kg}</div>
-          <div style={{fontSize:14,color:'var(--text-dim)',marginTop:4}}>kg · {fmt(latest.date)}</div>
-          {diff!==null && <div style={{marginTop:8,fontSize:14,color:parseFloat(diff)<0?'var(--green)':parseFloat(diff)>0?'var(--red)':'var(--text-dim)'}}>{parseFloat(diff)>0?'+':''}{diff} kg since last entry</div>}
-        </div>
-      )}
-      <div className="card" style={{marginBottom:20}}>
-        <div style={{fontSize:13,fontWeight:600,marginBottom:12}}>Log Weight</div>
-        <div style={{display:'flex',gap:8,alignItems:'flex-end'}}>
-          <div className="field" style={{flex:2,marginBottom:0}}>
-            <input className="input" type="number" step="0.1" placeholder="e.g. 82.4 kg" value={kg} onChange={e=>setKg(e.target.value)} />
+    <div style={{display:'flex', flexDirection:'column', height:'100%', overflow:'hidden'}}>
+      {/* Fixed top section */}
+      <div style={{padding:'20px 16px 0', flexShrink:0}}>
+        <div className="screen-title">Weight</div>
+        {latest && (
+          <div className="card" style={{marginBottom:12,textAlign:'center'}}>
+            <div style={{fontSize:11,color:'var(--text-muted)',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>Latest</div>
+            <div style={{fontSize:52,fontWeight:700,fontFamily:'var(--mono)',color:'var(--green)',lineHeight:1}}>{latest.kg}</div>
+            <div style={{fontSize:14,color:'var(--text-dim)',marginTop:4}}>kg · {fmt(latest.date)}</div>
+            {diff!==null && <div style={{marginTop:8,fontSize:14,color:parseFloat(diff)<0?'var(--green)':parseFloat(diff)>0?'var(--red)':'var(--text-dim)'}}>{parseFloat(diff)>0?'+':''}{diff} kg since last entry</div>}
           </div>
-          <div className="field" style={{flex:2,marginBottom:0}}>
-            <input className="input" type="date" value={date} onChange={e=>setDate(e.target.value)} />
+        )}
+        <div className="card" style={{marginBottom:8}}>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:12}}>Log Weight</div>
+          <div style={{display:'flex',gap:8,alignItems:'flex-end'}}>
+            <div className="field" style={{flex:2,marginBottom:0}}>
+              <input className="input" type="number" step="0.1" placeholder="e.g. 82.4" value={kg} onChange={e=>setKg(e.target.value)} />
+            </div>
+            <div className="field" style={{flex:2,marginBottom:0}}>
+              <input className="input" type="date" value={date} onChange={e=>setDate(e.target.value)} />
+            </div>
+            <button className="btn btn-primary" style={{flex:0,whiteSpace:'nowrap',marginBottom:0,padding:'11px 16px'}} onClick={logWeight}>Log</button>
           </div>
-          <button className="btn btn-primary" style={{flex:0,whiteSpace:'nowrap',marginBottom:0,padding:'11px 16px'}} onClick={logWeight}>Log</button>
+          {/* Toast */}
+          <div style={{
+            marginTop: toast ? 10 : 0,
+            maxHeight: toast ? 28 : 0,
+            overflow: 'hidden',
+            transition: 'max-height 0.25s ease, opacity 0.25s ease',
+            opacity: toast ? 1 : 0,
+            fontSize: 13,
+            color: toast?.updated ? 'var(--amber)' : 'var(--green)',
+            fontWeight: 500,
+          }}>{toast?.msg}</div>
         </div>
+        <div className="section-label" style={{marginTop:16,marginBottom:8}}>History</div>
       </div>
-      <div className="section-label">History</div>
-      {weights.length===0 && <p className="empty">No entries yet. Log your morning weight above.</p>}
-      {weights.length>0 && (
-        <div className="card">
-          {weights.slice(0,30).map((w,i)=>{
-            const p=weights[i+1];
-            const d=p?(w.kg-p.kg).toFixed(1):null;
-            return (
-              <div key={w.id} className="weight-entry">
-                <div>
-                  <div className="weight-val">{w.kg} <span style={{fontSize:14,color:'var(--text-dim)'}}>kg</span></div>
-                  {d!==null&&<div style={{fontSize:11,color:parseFloat(d)<0?'var(--green)':parseFloat(d)>0?'var(--red)':'var(--text-dim)'}}>{parseFloat(d)>0?'+':''}{d} kg</div>}
+
+      {/* Scrollable history */}
+      <div style={{flex:1, overflowY:'auto', padding:'0 16px', paddingBottom:`calc(var(--tab-height) + 16px)`}}>
+        {weights.length===0 && <p className="empty">No entries yet. Log your morning weight above.</p>}
+        {weights.length>0 && (
+          <div className="card">
+            {weights.map((w,i)=>{
+              const p=weights[i+1];
+              const d=p?(w.kg-p.kg).toFixed(1):null;
+              return (
+                <div key={w.id} className="weight-entry">
+                  <div>
+                    <div className="weight-val">{w.kg} <span style={{fontSize:14,color:'var(--text-dim)'}}>kg</span></div>
+                    {d!==null&&<div style={{fontSize:11,color:parseFloat(d)<0?'var(--green)':parseFloat(d)>0?'var(--red)':'var(--text-dim)'}}>{parseFloat(d)>0?'+':''}{d} kg</div>}
+                  </div>
+                  <div style={{textAlign:'right'}}>
+                    <div className="weight-date">{fmt(w.date)}</div>
+                    <button style={{fontSize:11,color:'var(--red)',marginTop:4}} onClick={()=>setWeights(p=>p.filter(x=>x.id!==w.id))}>Remove</button>
+                  </div>
                 </div>
-                <div style={{textAlign:'right'}}>
-                  <div className="weight-date">{fmt(w.date)}</div>
-                  <button style={{fontSize:11,color:'var(--red)',marginTop:4}} onClick={()=>setWeights(p=>p.filter(x=>x.id!==w.id))}>Remove</button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
