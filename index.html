@@ -174,6 +174,17 @@ const numInput = (setter) => ({
   onBlur: e => { const v = e.target.value; if (v && !isNaN(v)) setter(parseFloat(v).toFixed(v.includes('.') ? 1 : 0)); },
 });
 
+function ConfirmDelete({ onConfirm, label, className, style }) {
+  const [confirming, setConfirming] = useState(false);
+  const timer = React.useRef(null);
+  const handleClick = () => {
+    if (confirming) { clearTimeout(timer.current); onConfirm(); }
+    else { setConfirming(true); timer.current = setTimeout(() => setConfirming(false), 3000); }
+  };
+  useEffect(() => () => clearTimeout(timer.current), []);
+  return <button className={className} style={{...style, ...(confirming ? {color:'var(--red)',fontWeight:600} : {})}} onClick={handleClick}>{confirming ? (label||'Delete?') : '✕'}</button>;
+}
+
 function App() {
   const [tab, setTab] = useState('dash');
   const [ingredients, setIngredients] = useState(() => load('ing_v1', []));
@@ -571,7 +582,7 @@ function EntryCard({ entry, settings, expanded, onToggle, onDelete }) {
           <div style={{color:'var(--blue)'}}>{Math.round(entry.protein)}g prot</div>
         </div>
         {entry.isComposite && <button className="log-entry-delete" onClick={onToggle}>{expanded?'▲':'▼'}</button>}
-        <button className="log-entry-delete" onClick={onDelete}>✕</button>
+        <ConfirmDelete className="log-entry-delete" onConfirm={onDelete} />
       </div>
       {expanded && entry.ingredients && (
         <div className="log-entry-expand">
@@ -725,7 +736,7 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals, settings 
               </div>
               <div className="lib-item-actions">
                 <button className="btn btn-secondary btn-sm" onClick={() => {setEditing(ing);setModal('ing');}}>Edit</button>
-                <button className="btn btn-danger btn-sm" onClick={() => setIngredients(p=>p.filter(i=>i.id!==ing.id))}>✕</button>
+                <ConfirmDelete className="btn btn-danger btn-sm" onConfirm={() => setIngredients(p=>p.filter(i=>i.id!==ing.id))} />
               </div>
             </div>
           ); })}
@@ -742,7 +753,7 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals, settings 
                 </div>
                 <div className="lib-item-actions">
                   <button className="btn btn-secondary btn-sm" onClick={() => {setEditing(m);setModal('meal');}}>Edit</button>
-                  <button className="btn btn-danger btn-sm" onClick={() => setMeals(p=>p.filter(x=>x.id!==m.id))}>✕</button>
+                  <ConfirmDelete className="btn btn-danger btn-sm" onConfirm={() => setMeals(p=>p.filter(x=>x.id!==m.id))} />
                 </div>
               </div>
               <div>{m.ingredients.map((ing,i) => {
@@ -958,7 +969,7 @@ function WeightScreen({ weights, setWeights }) {
                   </div>
                   <div style={{textAlign:'right'}}>
                     <div className="weight-date">{fmt(w.date)}</div>
-                    <button style={{fontSize:11,color:'var(--red)',marginTop:4}} onClick={()=>setWeights(p=>p.filter(x=>x.id!==w.id))}>Remove</button>
+                    <ConfirmDelete style={{fontSize:11,marginTop:4}} label="Remove?" onConfirm={()=>setWeights(p=>p.filter(x=>x.id!==w.id))} />
                   </div>
                 </div>
               );
