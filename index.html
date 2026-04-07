@@ -963,8 +963,9 @@ function LogModal({ category, ingredients, meals, settings, onAdd, onClose }) {
 // ─── LIBRARY ─────────────────────────────────────────────────
 function LibraryScreen({ ingredients, setIngredients, meals, setMeals, settings, log, setLog }) {
   const [view, setView] = useState('ingredients');
-  const [catFilter, setCatFilter] = useState('all'); // all | meal | snack
-  const [ratioFilter, setRatioFilter] = useState('all'); // all | green | amber | red
+  const [catFilter, setCatFilter] = useState('all');
+  const [ratioFilter, setRatioFilter] = useState('all');
+  const [showRatioInfo, setShowRatioInfo] = useState(false);
   const [modal, setModal] = useState(null);
   const [editing, setEditing] = useState(null);
   const [quickLog, setQuickLog] = useState(null);
@@ -1013,18 +1014,53 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals, settings,
           <button className={`chip ${view==='ingredients'?'selected':''}`} onClick={() => { setView('ingredients'); setCatFilter('all'); }}>Ingredients</button>
           <button className={`chip ${view==='meals'?'selected':''}`} onClick={() => setView('meals')}>Composites</button>
         </div>
-        <div className="chips" style={{marginTop:8,gap:6}}>
-          {view === 'meals' && <>
-            <button className={`chip ${catFilter==='all'?'selected':''}`} style={{fontSize:12,padding:'3px 10px'}} onClick={() => setCatFilter('all')}>All</button>
-            <button className={`chip ${catFilter==='meal'?'selected':''}`} style={{fontSize:12,padding:'3px 10px'}} onClick={() => setCatFilter('meal')}>Meals</button>
-            <button className={`chip ${catFilter==='snack'?'selected':''}`} style={{fontSize:12,padding:'3px 10px'}} onClick={() => setCatFilter('snack')}>Snacks</button>
-            <span style={{width:1,height:16,background:'var(--border)',margin:'0 2px'}} />
-          </>}
-          <button className={`chip ${ratioFilter==='all'?'selected':''}`} style={{fontSize:12,padding:'3px 10px'}} onClick={() => setRatioFilter('all')}>All</button>
-          <button className={`chip ${ratioFilter==='green'?'selected':''}`} style={{fontSize:12,padding:'3px 10px',color:ratioFilter==='green'?'':'var(--green)'}} onClick={() => setRatioFilter('green')}>High</button>
-          <button className={`chip ${ratioFilter==='amber'?'selected':''}`} style={{fontSize:12,padding:'3px 10px',color:ratioFilter==='amber'?'':'var(--amber)'}} onClick={() => setRatioFilter('amber')}>Mid</button>
-          <button className={`chip ${ratioFilter==='red'?'selected':''}`} style={{fontSize:12,padding:'3px 10px',color:ratioFilter==='red'?'':'var(--red)'}} onClick={() => setRatioFilter('red')}>Low</button>
-        </div>
+        {(() => { const hasFilters = catFilter !== 'all' || ratioFilter !== 'all'; return (
+          <div className="chips" style={{marginTop:8,gap:6,alignItems:'center'}}>
+            {view === 'meals' && <>
+              <button className={`chip ${catFilter==='meal'?'selected':''}`} style={{fontSize:12,padding:'3px 10px'}} onClick={() => setCatFilter(catFilter==='meal'?'all':'meal')}>Meals</button>
+              <button className={`chip ${catFilter==='snack'?'selected':''}`} style={{fontSize:12,padding:'3px 10px'}} onClick={() => setCatFilter(catFilter==='snack'?'all':'snack')}>Snacks</button>
+              <span style={{width:1,height:16,background:'var(--border)',margin:'0 2px'}} />
+            </>}
+            <button className={`chip ${ratioFilter==='green'?'selected':''}`} style={{fontSize:12,padding:'3px 10px',color:ratioFilter==='green'?'':'var(--green)'}} onClick={() => setRatioFilter(ratioFilter==='green'?'all':'green')}>High</button>
+            <button className={`chip ${ratioFilter==='amber'?'selected':''}`} style={{fontSize:12,padding:'3px 10px',color:ratioFilter==='amber'?'':'var(--amber)'}} onClick={() => setRatioFilter(ratioFilter==='amber'?'all':'amber')}>Mid</button>
+            <button className={`chip ${ratioFilter==='red'?'selected':''}`} style={{fontSize:12,padding:'3px 10px',color:ratioFilter==='red'?'':'var(--red)'}} onClick={() => setRatioFilter(ratioFilter==='red'?'all':'red')}>Low</button>
+            {hasFilters && <button style={{fontSize:11,color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer',padding:'3px 6px',textDecoration:'underline'}} onClick={() => { setCatFilter('all'); setRatioFilter('all'); }}>Clear</button>}
+            <button onClick={() => setShowRatioInfo(true)} style={{width:24,height:24,borderRadius:12,border:'1px solid var(--border)',background:'var(--surface)',color:'var(--blue)',fontSize:13,fontWeight:700,cursor:'pointer',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',marginLeft:'auto'}}>i</button>
+          </div>
+        ); })()}
+        {showRatioInfo && (
+          <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.6)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:20}} onClick={() => setShowRatioInfo(false)}>
+            <div style={{background:'var(--surface)',borderRadius:14,padding:24,maxWidth:380,width:'100%',maxHeight:'80vh',overflow:'auto'}} onClick={e => e.stopPropagation()}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+                <div style={{fontSize:16,fontWeight:700}}>Protein ratio rating</div>
+                <button onClick={() => setShowRatioInfo(false)} style={{background:'none',border:'none',color:'var(--text-muted)',fontSize:20,cursor:'pointer'}}>✕</button>
+              </div>
+              <div style={{fontSize:13,color:'var(--text)',lineHeight:1.7}}>
+                <p style={{marginBottom:12}}>Each item gets a coloured dot based on how its protein-to-calorie ratio compares to <strong>your daily targets</strong>.</p>
+                <p style={{marginBottom:8,fontSize:12,color:'var(--text-dim)'}}>The ratio is calculated as:</p>
+                <div style={{background:'var(--surface2)',borderRadius:8,padding:10,fontFamily:'var(--mono)',fontSize:11,marginBottom:14}}>
+                  ratio = (protein × 4) / calories
+                </div>
+                <p style={{marginBottom:10,fontSize:12,color:'var(--text-dim)'}}>Your target ratio comes from your daily goals ({Math.round(settings.protein)}g protein, {Math.round(settings.calories)} kcal). Each item's ratio is compared to yours:</p>
+                <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:14}}>
+                  <div style={{display:'flex',alignItems:'center',gap:10}}>
+                    <span style={{width:10,height:10,borderRadius:'50%',background:'var(--green)',flexShrink:0}} />
+                    <span><strong style={{color:'var(--green)'}}>High</strong> — ratio is at or above your target. Great protein density.</span>
+                  </div>
+                  <div style={{display:'flex',alignItems:'center',gap:10}}>
+                    <span style={{width:10,height:10,borderRadius:'50%',background:'var(--amber)',flexShrink:0}} />
+                    <span><strong style={{color:'var(--amber)'}}>Mid</strong> — ratio is 70–99% of your target. Decent, but pair with high-protein items.</span>
+                  </div>
+                  <div style={{display:'flex',alignItems:'center',gap:10}}>
+                    <span style={{width:10,height:10,borderRadius:'50%',background:'var(--red)',flexShrink:0}} />
+                    <span><strong style={{color:'var(--red)'}}>Low</strong> — ratio is below 70% of your target. High calorie relative to protein.</span>
+                  </div>
+                </div>
+                <p style={{fontSize:11,color:'var(--text-dim)'}}>Use these filters to find items that align with your goals, or to identify which items to balance out.</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={{flex:1, overflowY:'auto', padding:'0 16px'}}>
@@ -1589,15 +1625,28 @@ function SettingsScreen({ settings, setSettings, theme, setTheme, user, weights 
     setSaved(true); setTimeout(()=>setSaved(false),2000);
   };
 
+  const hasChanges = String(settings.calories) !== cal || String(settings.protein) !== pro ||
+    (settings.weightMode || 'lose') !== wMode ||
+    String(settings.weightAmount || '') !== wAmount ||
+    String(settings.weightTime || '') !== wTime ||
+    (settings.weightTimeUnit || 'months') !== wTimeUnit;
+
   return (
-    <div className="screen">
+    <div className="screen" style={{position:'relative'}}>
+      {(hasChanges || saved) && (
+        <div style={{position:'fixed',bottom:'calc(var(--tab-height) + 8px)',left:'50%',transform:'translateX(-50%)',width:'100%',maxWidth:480,padding:'0 16px',boxSizing:'border-box',zIndex:50}}>
+          <button className="btn btn-primary" onClick={saveSettings} style={{width:'100%',borderRadius:12,padding:'12px 0',boxShadow:'0 4px 16px rgba(0,0,0,0.3)',fontSize:14}}>
+            {saved ? '✅ Saved!' : 'Save Targets'}
+          </button>
+        </div>
+      )}
       <div className="screen-title">Settings</div>
       <div className="card" style={{marginBottom:20}}>
         <div className="field"><label>Daily Calorie Target (kcal)</label><input className="input" type="text" inputMode="decimal" value={cal} {...numInput(setCal)} /></div>
         <div className="field" style={{marginBottom:0}}><label>Daily Protein Target (g)</label><input className="input" type="text" inputMode="decimal" value={pro} {...numInput(setPro)} /></div>
       </div>
 
-      <GoalCalculator latestWeight={weights && weights.length > 0 ? weights[0].kg : null} onApply={(c, p) => { setCal(String(Math.round(c))); setPro(String(Math.round(p))); }} />
+      <GoalCalculator latestWeight={weights && weights.length > 0 ? weights[0].kg : null} onApply={(c, p) => { const rc = Math.round(c), rp = Math.round(p); setCal(String(rc)); setPro(String(rp)); setSettings(s => ({ ...s, calories: rc, protein: rp })); }} />
 
       <div className="section-label" style={{marginTop:24}}>Weight Target</div>
       <div className="card" style={{marginBottom:20}}>
@@ -1623,8 +1672,7 @@ function SettingsScreen({ settings, setSettings, theme, setTheme, user, weights 
         )}
       </div>
 
-      <button className="btn btn-primary" onClick={saveSettings}>{saved?'✅ Saved!':'Save Targets'}</button>
-      <div className="section-label" style={{marginTop:32}}>Preferences</div>
+      <div className="section-label" style={{marginTop:24}}>Preferences</div>
       <div className="card" style={{marginBottom:12}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <label style={{fontSize:14}}>Weight unit</label>
