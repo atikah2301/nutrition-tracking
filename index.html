@@ -259,7 +259,7 @@ function ConfirmDelete({ onConfirm, label, className, style }) {
   return <button className={className} style={{...style, ...(confirming ? {color:'var(--red)',fontWeight:600} : {})}} onClick={handleClick}>{confirming ? (label||'Delete?') : '✕'}</button>;
 }
 
-const DEFAULT_SETTINGS = { calories: 1200, protein: 100, weightMode: 'lose', weightAmount: null, weightTime: null, weightTimeUnit: 'months' };
+const DEFAULT_SETTINGS = { calories: 1200, protein: 100, weightMode: 'lose', weightAmount: null, weightTime: null, weightTimeUnit: 'months', weightDisplayUnit: 'kg' };
 
 function App() {
   const { user, loading: authLoading } = useAuth();
@@ -530,6 +530,9 @@ function DashChart({ label, data, color, targetValue, targetMode, unit, trendLin
 
 function DashScreen({ log, weights, settings, theme }) {
   const [range, setRange] = useState('1M');
+  const useLbs = (settings.weightDisplayUnit || 'kg') === 'lbs';
+  const toDisplay = (kgVal) => useLbs ? kgVal / 0.453592 : kgVal;
+  const unitLabel = useLbs ? 'lbs' : 'kg';
 
   const filterByRange = (items) => {
     if (range === 'All') return items;
@@ -543,7 +546,7 @@ function DashScreen({ log, weights, settings, theme }) {
 
   // Weight data
   const weightData = filterByRange(
-    [...weights].sort((a, b) => a.date.localeCompare(b.date)).map(w => ({ date: w.date, value: w.kg }))
+    [...weights].sort((a, b) => a.date.localeCompare(b.date)).map(w => ({ date: w.date, value: Math.round(toDisplay(w.kg) * 10) / 10 }))
   );
 
   // Weight trend line
@@ -557,7 +560,8 @@ function DashScreen({ log, weights, settings, theme }) {
     const totalDays = (endDate - startDate) / (1000 * 60 * 60 * 24);
     if (totalDays <= 0) return null;
     const sign = settings.weightMode === 'lose' ? -1 : 1;
-    const endKg = startKg + sign * settings.weightAmount;
+    const displayAmount = toDisplay(settings.weightAmount);
+    const endKg = startKg + sign * displayAmount;
     return weightData.map(d => {
       const dt = new Date(d.date + 'T12:00:00');
       const elapsed = (dt - startDate) / (1000 * 60 * 60 * 24);
@@ -609,7 +613,7 @@ function DashScreen({ log, weights, settings, theme }) {
     const directed = isLose ? diff : -diff; // positive = bad direction
     const color = directed <= 0 ? 'var(--green)' : directed <= 1 ? 'var(--amber)' : 'var(--red)';
     const hint = directed <= 0 ? 'On track' : directed <= 1 ? 'Slightly off' : 'Off target';
-    return { value: `${latest.value} kg`, color, hint };
+    return { value: `${latest.value} ${unitLabel}`, color, hint };
   })();
 
   return (
@@ -651,7 +655,7 @@ function DashScreen({ log, weights, settings, theme }) {
         )}
       </div>
       <div style={{flex:1, overflowY:'auto', padding:'0 16px', paddingBottom:`calc(var(--tab-height) + 16px)`}}>
-        <DashChart label="Weight (kg)" data={weightData} color="#c4a8ff" unit="kg" trendLine={weightTrend} theme={theme} />
+        <DashChart label={`Weight (${unitLabel})`} data={weightData} color="#c4a8ff" unit={unitLabel} trendLine={weightTrend} theme={theme} />
         <DashChart label="Calories (kcal)" data={calData} color="#f0a0b0" targetValue={settings.calories} targetMode="max" unit="kcal" theme={theme} />
         <DashChart label="Protein (g)" data={proData} color="#7ecfc0" targetValue={settings.protein} targetMode="min" unit="g" theme={theme} />
       </div>
@@ -1185,17 +1189,24 @@ function MealModal({ initial, ingredients, settings, onSave, onClose }) {
 }
 
 // ─── WEIGHT ──────────────────────────────────────────────────
-function WeightScreen({ weights, setWeights }) {
+function WeightScreen({ weights, setWeights, settings }) {
+  const useLbs = (settings.weightDisplayUnit || 'kg') === 'lbs';
+  const toDisplay = (kgVal) => useLbs ? (kgVal / 0.453592) : kgVal;
+  const fromDisplay = (dispVal) => useLbs ? (dispVal * 0.453592) : dispVal;
+  const unitLabel = useLbs ? 'lbs' : 'kg';
+  const step = useLbs ? 0.5 : 0.1;
+  const decimals = useLbs ? 1 : 1;
+
   const latest = weights[0];
-  const [kg, setKg] = useState(latest ? String(latest.kg) : '');
+  const [inputVal, setInputVal] = useState(latest ? String(parseFloat(toDisplay(latest.kg).toFixed(decimals))) : '');
   const [date, setDate] = useState(today());
-  const [toast, setToast] = useState(null); // { msg, updated }
+  const [toast, setToast] = useState(null);
   const toastTimer = React.useRef(null);
 
   const logWeight = () => {
-    if (!kg || isNaN(kg)) return;
-    const rounded = parseFloat(parseFloat(kg).toFixed(1));
-    const entry = { id: uid(), date, kg: rounded };
+    if (!inputVal || isNaN(inputVal)) return;
+    const kgVal = parseFloat(fromDisplay(parseFloat(inputVal)).toFixed(1));
+    const entry = { id: uid(), date, kg: kgVal };
     const isUpdate = weights.some(w => w.date === date);
     setWeights(prev => {
       const without = prev.filter(w => w.date !== date);
@@ -1207,7 +1218,7 @@ function WeightScreen({ weights, setWeights }) {
   };
 
   const prev = weights[1];
-  const diff = latest && prev ? (latest.kg - prev.kg).toFixed(1) : null;
+  const diff = latest && prev ? toDisplay(latest.kg - prev.kg).toFixed(decimals) : null;
 
   return (
     <div style={{display:'flex', flexDirection:'column', height:'100%', overflow:'hidden'}}>
@@ -1217,18 +1228,18 @@ function WeightScreen({ weights, setWeights }) {
         {latest && (
           <div className="card" style={{marginBottom:12,textAlign:'center'}}>
             <div style={{fontSize:11,color:'var(--text-muted)',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>Latest</div>
-            <div style={{fontSize:52,fontWeight:700,fontFamily:'var(--mono)',color:'var(--green)',lineHeight:1}}>{latest.kg}</div>
-            <div style={{fontSize:14,color:'var(--text-dim)',marginTop:4}}>kg · {fmt(latest.date)}</div>
-            {diff!==null && <div style={{marginTop:8,fontSize:14,color:parseFloat(diff)<0?'var(--green)':parseFloat(diff)>0?'var(--red)':'var(--text-dim)'}}>{parseFloat(diff)>0?'+':''}{diff} kg since last entry</div>}
+            <div style={{fontSize:52,fontWeight:700,fontFamily:'var(--mono)',color:'var(--green)',lineHeight:1}}>{toDisplay(latest.kg).toFixed(decimals)}</div>
+            <div style={{fontSize:14,color:'var(--text-dim)',marginTop:4}}>{unitLabel} · {fmt(latest.date)}</div>
+            {diff!==null && <div style={{marginTop:8,fontSize:14,color:parseFloat(diff)<0?'var(--green)':parseFloat(diff)>0?'var(--red)':'var(--text-dim)'}}>{parseFloat(diff)>0?'+':''}{diff} {unitLabel} since last entry</div>}
           </div>
         )}
         <div className="card" style={{marginBottom:8}}>
           <div style={{fontSize:13,fontWeight:600,marginBottom:12}}>Log Weight</div>
           <div style={{display:'flex',gap:8,alignItems:'flex-end'}}>
             <div className="field" style={{flex:2,marginBottom:0,display:'flex',gap:4,alignItems:'center'}}>
-              <button className="btn btn-secondary" style={{padding:'10px 10px',fontSize:16,lineHeight:1,flexShrink:0}} onClick={()=>setKg(v=>{const n=parseFloat(v);return isNaN(n)?v:(Math.max(0,n-0.1)).toFixed(1);})}>−</button>
-              <input className="input" type="text" inputMode="decimal" placeholder="e.g. 82.4" value={kg} {...numInput(setKg)} style={{textAlign:'center'}} />
-              <button className="btn btn-secondary" style={{padding:'10px 10px',fontSize:16,lineHeight:1,flexShrink:0}} onClick={()=>setKg(v=>{const n=parseFloat(v);return isNaN(n)?v:(n+0.1).toFixed(1);})}>+</button>
+              <button className="btn btn-secondary" style={{padding:'10px 10px',fontSize:16,lineHeight:1,flexShrink:0}} onClick={()=>setInputVal(v=>{const n=parseFloat(v);return isNaN(n)?v:(Math.max(0,n-step)).toFixed(decimals);})}>−</button>
+              <input className="input" type="text" inputMode="decimal" placeholder={useLbs?'e.g. 180':'e.g. 82.4'} value={inputVal} {...numInput(setInputVal)} style={{textAlign:'center'}} />
+              <button className="btn btn-secondary" style={{padding:'10px 10px',fontSize:16,lineHeight:1,flexShrink:0}} onClick={()=>setInputVal(v=>{const n=parseFloat(v);return isNaN(n)?v:(n+step).toFixed(decimals);})}>+</button>
             </div>
             <div className="field" style={{flex:2,marginBottom:0}}>
               <input className="input" type="date" value={date} onChange={e=>setDate(e.target.value)} />
@@ -1257,12 +1268,12 @@ function WeightScreen({ weights, setWeights }) {
           <div className="card">
             {weights.map((w,i)=>{
               const p=weights[i+1];
-              const d=p?(w.kg-p.kg).toFixed(1):null;
+              const d=p?toDisplay(w.kg-p.kg).toFixed(decimals):null;
               return (
                 <div key={w.id} className="weight-entry">
                   <div>
-                    <div className="weight-val">{w.kg} <span style={{fontSize:14,color:'var(--text-dim)'}}>kg</span></div>
-                    {d!==null&&<div style={{fontSize:11,color:parseFloat(d)<0?'var(--green)':parseFloat(d)>0?'var(--red)':'var(--text-dim)'}}>{parseFloat(d)>0?'+':''}{d} kg</div>}
+                    <div className="weight-val">{toDisplay(w.kg).toFixed(decimals)} <span style={{fontSize:14,color:'var(--text-dim)'}}>{ unitLabel}</span></div>
+                    {d!==null&&<div style={{fontSize:11,color:parseFloat(d)<0?'var(--green)':parseFloat(d)>0?'var(--red)':'var(--text-dim)'}}>{parseFloat(d)>0?'+':''}{d} {unitLabel}</div>}
                   </div>
                   <div style={{textAlign:'right'}}>
                     <div className="weight-date">{fmt(w.date)}</div>
@@ -1502,14 +1513,15 @@ function SettingsScreen({ settings, setSettings, theme, setTheme, user, weights 
 
   const saveSettings = () => {
     if (!cal||!pro) return;
-    setSettings({
+    setSettings(s => ({
+      ...s,
       calories: parseFloat(cal),
       protein: parseFloat(pro),
       weightMode: wMode,
       weightAmount: wAmount ? parseFloat(wAmount) : null,
       weightTime: wTime ? parseFloat(wTime) : null,
       weightTimeUnit: wTimeUnit,
-    });
+    }));
     setSaved(true); setTimeout(()=>setSaved(false),2000);
   };
 
@@ -1548,7 +1560,16 @@ function SettingsScreen({ settings, setSettings, theme, setTheme, user, weights 
       </div>
 
       <button className="btn btn-primary" onClick={saveSettings}>{saved?'✅ Saved!':'Save Targets'}</button>
-      <div className="section-label" style={{marginTop:32}}>Appearance</div>
+      <div className="section-label" style={{marginTop:32}}>Preferences</div>
+      <div className="card" style={{marginBottom:12}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <label style={{fontSize:14}}>Weight unit</label>
+          <div className="chips" style={{marginBottom:0}}>
+            <button className={`chip ${(settings.weightDisplayUnit||'kg')==='kg'?'selected':''}`} onClick={() => setSettings(s => ({...s, weightDisplayUnit:'kg'}))}>kg</button>
+            <button className={`chip ${(settings.weightDisplayUnit||'kg')==='lbs'?'selected':''}`} onClick={() => setSettings(s => ({...s, weightDisplayUnit:'lbs'}))}>lbs</button>
+          </div>
+        </div>
+      </div>
       <div className="theme-toggle" onClick={() => setTheme(t => t==='dark'?'light':'dark')}>
         <span className="theme-toggle-label">{theme==='light'?'☀️ Light Mode':'🌙 Dark Mode'}</span>
         <div className={`theme-toggle-track ${theme==='light'?'on':''}`}><div className="theme-toggle-thumb" /></div>
