@@ -9,9 +9,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore-compat.js"></script>
   <style>
     :root {
       --bg: #0f0f0f;
@@ -1290,9 +1290,10 @@ function SettingsScreen({ settings, setSettings, theme, setTheme, user }) {
   const [authLoading, setAuthLoading] = useState(false);
 
   const signInGoogle = async () => {
-    if (!auth || !googleProvider) return;
-    setAuthError('');
-    try { await auth.signInWithPopup(googleProvider); } catch (e) { setAuthError(e.code + ': ' + e.message); }
+    if (!auth || !googleProvider || authLoading) return;
+    setAuthError(''); setAuthLoading(true);
+    try { await auth.signInWithPopup(googleProvider); } catch (e) { if (e.code !== 'auth/cancelled-popup-request' && e.code !== 'auth/popup-closed-by-user') setAuthError(e.code + ': ' + e.message); }
+    setAuthLoading(false);
   };
   const signInEmail = async () => {
     if (!auth || !email || !password) return;
