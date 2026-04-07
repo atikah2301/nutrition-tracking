@@ -180,7 +180,7 @@ const numInput = (setter) => ({
 // ─── FIREBASE ────────────────────────────────────────────────
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDiFb6yipCSb5zzT4Ce-IGKn6ds6uq8Zm4",
-  authDomain: "nutrition-tracking-2b815.web.app",
+  authDomain: "nutrition-tracking-2b815.firebaseapp.com",
   projectId: "nutrition-tracking-2b815",
   storageBucket: "nutrition-tracking-2b815.firebasestorage.app",
   messagingSenderId: "1098474392923",
@@ -1379,9 +1379,6 @@ function SettingsScreen({ settings, setSettings, theme, setTheme, user }) {
         auth ? (
           <div className="card">
             <p style={{fontSize:12,color:'var(--text-dim)',marginBottom:14}}>Sign in to sync your data across devices.</p>
-            {googleProvider && (
-              <button className="btn btn-secondary" style={{width:'100%',marginBottom:10}} onClick={signInGoogle}>Sign in with Google</button>
-            )}
             {authMode !== 'email' ? (
               <button className="btn btn-secondary" style={{width:'100%'}} onClick={() => setAuthMode('email')}>Sign in with email</button>
             ) : (
