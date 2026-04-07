@@ -963,6 +963,8 @@ function LogModal({ category, ingredients, meals, settings, onAdd, onClose }) {
 // ─── LIBRARY ─────────────────────────────────────────────────
 function LibraryScreen({ ingredients, setIngredients, meals, setMeals, settings, log, setLog }) {
   const [view, setView] = useState('ingredients');
+  const [catFilter, setCatFilter] = useState('all'); // all | meal | snack
+  const [ratioFilter, setRatioFilter] = useState('all'); // all | green | amber | red
   const [modal, setModal] = useState(null);
   const [editing, setEditing] = useState(null);
   const [quickLog, setQuickLog] = useState(null);
@@ -970,6 +972,13 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals, settings,
   const [qlAmount, setQlAmount] = useState('');
   const [qlUnit, setQlUnit] = useState('g');
   const [qlDone, setQlDone] = useState(false);
+
+  const targetRatio = settings.calories > 0 ? (settings.protein * 4) / settings.calories : 0;
+  const getRatioBand = (cal, pro) => {
+    const r = cal > 0 ? (pro * 4) / cal : 0;
+    const p = targetRatio > 0 ? r / targetRatio : 1;
+    return p >= 1 ? 'green' : p >= 0.7 ? 'amber' : 'red';
+  };
 
   const logToToday = (entry) => {
     setLog(prev => ({ ...prev, [today()]: [...(prev[today()] || []), { ...entry, id: uid() }] }));
@@ -1001,15 +1010,28 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals, settings,
       <div style={{padding:'20px 16px 0', flexShrink:0}}>
         <div className="screen-title">Library</div>
         <div className="chips">
-          <button className={`chip ${view==='ingredients'?'selected':''}`} onClick={() => setView('ingredients')}>Ingredients</button>
+          <button className={`chip ${view==='ingredients'?'selected':''}`} onClick={() => { setView('ingredients'); setCatFilter('all'); }}>Ingredients</button>
           <button className={`chip ${view==='meals'?'selected':''}`} onClick={() => setView('meals')}>Composites</button>
+        </div>
+        <div className="chips" style={{marginTop:8,gap:6}}>
+          {view === 'meals' && <>
+            <button className={`chip ${catFilter==='all'?'selected':''}`} style={{fontSize:12,padding:'3px 10px'}} onClick={() => setCatFilter('all')}>All</button>
+            <button className={`chip ${catFilter==='meal'?'selected':''}`} style={{fontSize:12,padding:'3px 10px'}} onClick={() => setCatFilter('meal')}>Meals</button>
+            <button className={`chip ${catFilter==='snack'?'selected':''}`} style={{fontSize:12,padding:'3px 10px'}} onClick={() => setCatFilter('snack')}>Snacks</button>
+            <span style={{width:1,height:16,background:'var(--border)',margin:'0 2px'}} />
+          </>}
+          <button className={`chip ${ratioFilter==='all'?'selected':''}`} style={{fontSize:12,padding:'3px 10px'}} onClick={() => setRatioFilter('all')}>All</button>
+          <button className={`chip ${ratioFilter==='green'?'selected':''}`} style={{fontSize:12,padding:'3px 10px',color:ratioFilter==='green'?'':'var(--green)'}} onClick={() => setRatioFilter('green')}>High</button>
+          <button className={`chip ${ratioFilter==='amber'?'selected':''}`} style={{fontSize:12,padding:'3px 10px',color:ratioFilter==='amber'?'':'var(--amber)'}} onClick={() => setRatioFilter('amber')}>Mid</button>
+          <button className={`chip ${ratioFilter==='red'?'selected':''}`} style={{fontSize:12,padding:'3px 10px',color:ratioFilter==='red'?'':'var(--red)'}} onClick={() => setRatioFilter('red')}>Low</button>
         </div>
       </div>
 
       <div style={{flex:1, overflowY:'auto', padding:'0 16px'}}>
         {view === 'ingredients' && <>
           {ingredients.length===0 && <p className="empty">No ingredients yet.<br/>Add foods with their per-100g nutrition values.</p>}
-          {ingredients.map(ing => { const targetRatio = settings.calories>0 ? (settings.protein*4)/settings.calories : 0; const ingRatio = ing.caloriesPer100>0 ? (ing.proteinPer100*4)/ing.caloriesPer100 : 0; const pct = targetRatio>0 ? ingRatio/targetRatio : 1; const dotCol = pct>=1?'var(--green)':pct>=0.7?'var(--amber)':'var(--red)'; return (
+          {ingredients.length>0 && ingredients.filter(ing => ratioFilter === 'all' || getRatioBand(ing.caloriesPer100, ing.proteinPer100) === ratioFilter).length === 0 && <p className="empty">No ingredients match this filter.</p>}
+          {ingredients.filter(ing => ratioFilter === 'all' || getRatioBand(ing.caloriesPer100, ing.proteinPer100) === ratioFilter).map(ing => { const band = getRatioBand(ing.caloriesPer100, ing.proteinPer100); const dotCol = band==='green'?'var(--green)':band==='amber'?'var(--amber)':'var(--red)'; return (
             <div key={ing.id} className="lib-item">
               <div className="lib-item-info">
                 <div className="lib-item-name"><span style={{display:'inline-block',width:8,height:8,borderRadius:'50%',background:dotCol,marginRight:6,verticalAlign:'middle'}} />{displayName(ing)}</div>
@@ -1026,7 +1048,8 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals, settings,
 
         {view === 'meals' && <>
           {meals.length===0 && <p className="empty">No composites yet.<br/>Combine ingredients into saved combos like "Spinach & Egg Breakfast" or "Protein Shake".</p>}
-          {meals.map(m => { const t = m.ingredients.reduce((a,ing) => { const d = ingredients.find(x=>x.id===ing.id); if(!d) return a; const f = parseFloat(ing.serving)/100; return { cal: a.cal+d.caloriesPer100*f, pro: a.pro+d.proteinPer100*f }; }, {cal:0,pro:0}); const targetRatio = settings.calories>0 ? (settings.protein*4)/settings.calories : 0; const mealRatio = t.cal>0 ? (t.pro*4)/t.cal : 0; const pct = targetRatio>0 ? mealRatio/targetRatio : 1; const dotCol = pct>=1?'var(--green)':pct>=0.7?'var(--amber)':'var(--red)'; return (
+          {meals.length>0 && meals.filter(m => (catFilter === 'all' || m.category === catFilter)).filter(m => { if (ratioFilter === 'all') return true; const t = m.ingredients.reduce((a,ing) => { const d = ingredients.find(x=>x.id===ing.id); if(!d) return a; const f = parseFloat(ing.serving)/100; return { cal: a.cal+d.caloriesPer100*f, pro: a.pro+d.proteinPer100*f }; }, {cal:0,pro:0}); return getRatioBand(t.cal, t.pro) === ratioFilter; }).length === 0 && (catFilter !== 'all' || ratioFilter !== 'all') && <p className="empty">No composites match these filters.</p>}
+          {meals.filter(m => (catFilter === 'all' || m.category === catFilter)).filter(m => { if (ratioFilter === 'all') return true; const t = m.ingredients.reduce((a,ing) => { const d = ingredients.find(x=>x.id===ing.id); if(!d) return a; const f = parseFloat(ing.serving)/100; return { cal: a.cal+d.caloriesPer100*f, pro: a.pro+d.proteinPer100*f }; }, {cal:0,pro:0}); return getRatioBand(t.cal, t.pro) === ratioFilter; }).map(m => { const t = m.ingredients.reduce((a,ing) => { const d = ingredients.find(x=>x.id===ing.id); if(!d) return a; const f = parseFloat(ing.serving)/100; return { cal: a.cal+d.caloriesPer100*f, pro: a.pro+d.proteinPer100*f }; }, {cal:0,pro:0}); const band = getRatioBand(t.cal, t.pro); const dotCol = band==='green'?'var(--green)':band==='amber'?'var(--amber)':'var(--red)'; return (
             <div key={m.id} className="lib-item" style={{flexDirection:'column',alignItems:'flex-start',gap:8}}>
               <div style={{display:'flex',width:'100%',alignItems:'center',gap:10}}>
                 <div className="lib-item-info">
@@ -1035,6 +1058,7 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals, settings,
                 </div>
                 <div className="lib-item-actions">
                   <button className="btn btn-secondary btn-sm" onClick={() => { setQuickLog({type:'composite',item:m}); setQlCategory(m.category||'meal'); }}>Log</button>
+                  <button className="btn btn-secondary btn-sm" onClick={() => { const clone = { ...m, id: uid(), name: m.name + ' (copy)', ingredients: m.ingredients.map(i => ({...i})) }; setMeals(p => [clone, ...p]); setEditing(clone); setModal('meal'); }}>Clone</button>
                   <button className="btn btn-secondary btn-sm" onClick={() => {setEditing(m);setModal('meal');}}>Edit</button>
                   <ConfirmDelete className="btn btn-danger btn-sm" onConfirm={() => setMeals(p=>p.filter(x=>x.id!==m.id))} />
                 </div>
