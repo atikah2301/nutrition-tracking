@@ -1279,7 +1279,100 @@ function WeightScreen({ weights, setWeights }) {
 }
 
 // ─── SETTINGS ────────────────────────────────────────────────
-function SettingsScreen({ settings, setSettings, theme, setTheme, user }) {
+function GoalCalculator({ latestWeight, onApply }) {
+  const [open, setOpen] = useState(false);
+  const [sex, setSex] = useState('female');
+  const [age, setAge] = useState('');
+  const [height, setHeight] = useState('');
+  const [weight, setWeight] = useState(latestWeight ? String(latestWeight) : '');
+  const [activity, setActivity] = useState('light');
+  const [goal, setGoal] = useState('fat_loss');
+  const [applied, setApplied] = useState(false);
+
+  // Auto-fill weight from latest weigh-in
+  useEffect(() => { if (latestWeight && !weight) setWeight(String(latestWeight)); }, [latestWeight]);
+
+  const activityMultipliers = { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725, extreme: 1.9 };
+  const activityLabels = { sedentary: 'Sedentary', light: 'Lightly active', moderate: 'Moderately active', active: 'Very active', extreme: 'Extremely active' };
+
+  const w = parseFloat(weight), h = parseFloat(height), a = parseFloat(age);
+  const valid = w > 0 && h > 0 && a > 0;
+
+  let bmr = null, tdee = null, calTarget = null, proTarget = null;
+  if (valid) {
+    bmr = 10 * w + 6.25 * h - 5 * a + (sex === 'male' ? 5 : -161);
+    tdee = bmr * activityMultipliers[activity];
+    if (goal === 'fat_loss') { calTarget = tdee - 500; proTarget = w * 2.0; }
+    else if (goal === 'recomp') { calTarget = tdee; proTarget = w * 1.8; }
+    else { calTarget = tdee + 300; proTarget = w * 1.8; }
+    calTarget = Math.max(calTarget, 1200); // safety floor
+  }
+
+  return (
+    <div style={{marginBottom:20}}>
+      <button className="btn btn-secondary" style={{width:'100%',marginBottom:open?12:0}} onClick={() => setOpen(!open)}>
+        {open ? '▾ Goal Calculator' : '▸ Goal Calculator — estimate your targets'}
+      </button>
+      {open && (
+        <div className="card" style={{marginTop:0}}>
+          <div className="field">
+            <label>Sex</label>
+            <div className="chips" style={{marginBottom:0}}>
+              <button className={`chip ${sex==='female'?'selected':''}`} onClick={() => setSex('female')}>Female</button>
+              <button className={`chip ${sex==='male'?'selected':''}`} onClick={() => setSex('male')}>Male</button>
+            </div>
+          </div>
+          <div className="field"><label>Age</label><input className="input" type="text" inputMode="numeric" placeholder="e.g. 28" value={age} {...numInput(setAge)} /></div>
+          <div className="field"><label>Height (cm)</label><input className="input" type="text" inputMode="decimal" placeholder="e.g. 170" value={height} {...numInput(setHeight)} /></div>
+          <div className="field"><label>Weight (kg){latestWeight ? ` — auto-filled from latest weigh-in` : ''}</label><input className="input" type="text" inputMode="decimal" placeholder="e.g. 72" value={weight} {...numInput(setWeight)} /></div>
+          <div className="field">
+            <label>Activity Level</label>
+            <select className="input" value={activity} onChange={e => setActivity(e.target.value)}>
+              {Object.entries(activityLabels).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </div>
+          <div className="field">
+            <label>Goal</label>
+            <div className="chips" style={{marginBottom:0}}>
+              <button className={`chip ${goal==='fat_loss'?'selected':''}`} onClick={() => setGoal('fat_loss')}>Fat Loss</button>
+              <button className={`chip ${goal==='recomp'?'selected':''}`} onClick={() => setGoal('recomp')}>Recomp</button>
+              <button className={`chip ${goal==='muscle'?'selected':''}`} onClick={() => setGoal('muscle')}>Muscle Gain</button>
+            </div>
+          </div>
+
+          {valid && (
+            <div style={{marginTop:12,padding:14,background:'var(--surface2)',borderRadius:10}}>
+              <div style={{fontSize:12,color:'var(--text-dim)',marginBottom:8}}>
+                BMR: {Math.round(bmr)} kcal &nbsp;·&nbsp; TDEE: {Math.round(tdee)} kcal
+              </div>
+              <div style={{display:'flex',gap:16,marginBottom:10}}>
+                <div>
+                  <div style={{fontSize:22,fontWeight:700,fontFamily:'var(--mono)'}}>{Math.round(calTarget)}</div>
+                  <div style={{fontSize:11,color:'var(--text-dim)'}}>kcal / day</div>
+                </div>
+                <div>
+                  <div style={{fontSize:22,fontWeight:700,fontFamily:'var(--mono)'}}>{Math.round(proTarget)}</div>
+                  <div style={{fontSize:11,color:'var(--text-dim)'}}>g protein / day</div>
+                </div>
+              </div>
+              <div style={{fontSize:11,color:'var(--text-dim)',marginBottom:10}}>
+                {goal === 'fat_loss' && 'TDEE − 500 kcal deficit · 2.0g protein/kg to preserve muscle'}
+                {goal === 'recomp' && 'Maintenance calories · 1.8g protein/kg for body recomposition'}
+                {goal === 'muscle' && 'TDEE + 300 kcal surplus · 1.8g protein/kg for muscle growth'}
+              </div>
+              <button className="btn btn-primary" style={{width:'100%'}} onClick={() => { onApply(calTarget, proTarget); setApplied(true); setTimeout(() => setApplied(false), 2000); }}>
+                {applied ? '✅ Applied!' : 'Apply These Targets'}
+              </button>
+            </div>
+          )}
+          {!valid && <p style={{fontSize:12,color:'var(--text-dim)',marginTop:8}}>Fill in age, height, and weight to see your estimated targets.</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SettingsScreen({ settings, setSettings, theme, setTheme, user, weights }) {
   const [cal, setCal] = useState(String(settings.calories));
   const [pro, setPro] = useState(String(settings.protein));
   const [authMode, setAuthMode] = useState(null); // null | 'email'
@@ -1342,6 +1435,8 @@ function SettingsScreen({ settings, setSettings, theme, setTheme, user }) {
         <div className="field"><label>Daily Calorie Target (kcal)</label><input className="input" type="text" inputMode="decimal" value={cal} {...numInput(setCal)} /></div>
         <div className="field" style={{marginBottom:0}}><label>Daily Protein Target (g)</label><input className="input" type="text" inputMode="decimal" value={pro} {...numInput(setPro)} /></div>
       </div>
+
+      <GoalCalculator latestWeight={weights && weights.length > 0 ? weights[0].kg : null} onApply={(c, p) => { setCal(String(Math.round(c))); setPro(String(Math.round(p))); }} />
 
       <div className="section-label" style={{marginTop:24}}>Weight Target</div>
       <div className="card" style={{marginBottom:20}}>
