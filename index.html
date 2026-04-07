@@ -684,6 +684,7 @@ function LogScreen({ log, setLog, ingredients, meals, settings }) {
 
   const addEntry = (entry) => { setLog(prev => ({ ...prev, [date]: [...(prev[date] || []), { ...entry, id: uid() }] })); setModal(null); };
   const removeEntry = (id) => setLog(prev => ({ ...prev, [date]: prev[date].filter(e => e.id !== id) }));
+  const updateEntry = (id, updated) => setLog(prev => ({ ...prev, [date]: prev[date].map(e => e.id === id ? { ...e, ...updated } : e) }));
   const shiftDate = (d) => { const dt = new Date(date + 'T12:00:00'); dt.setDate(dt.getDate() + d); setDate(dt.toISOString().slice(0, 10)); };
   const cloneEntries = (fromDate, replace) => {
     const src = log[fromDate] || [];
@@ -721,12 +722,12 @@ function LogScreen({ log, setLog, ingredients, meals, settings }) {
 
       <div className="section-label" style={{marginTop:0}}>Meals</div>
       {mealEntries.length===0 && <p style={{fontSize:13,color:'var(--text-muted)',marginBottom:10}}>No meals logged yet.</p>}
-      {mealEntries.map(e => <EntryCard key={e.id} entry={e} settings={settings} expanded={expandedId===e.id} onToggle={() => setExpandedId(expandedId===e.id?null:e.id)} onDelete={() => removeEntry(e.id)} />)}
+      {mealEntries.map(e => <EntryCard key={e.id} entry={e} settings={settings} expanded={expandedId===e.id} onToggle={() => setExpandedId(expandedId===e.id?null:e.id)} onDelete={() => removeEntry(e.id)} onUpdate={(u) => updateEntry(e.id, u)} />)}
       <button className="btn btn-secondary btn-sm" style={{width:'100%',marginBottom:20}} onClick={() => setModal('meal')}>+ Add Meal</button>
 
       <div className="section-label" style={{marginTop:0}}>Snacks</div>
       {snackEntries.length===0 && <p style={{fontSize:13,color:'var(--text-muted)',marginBottom:10}}>No snacks logged yet.</p>}
-      {snackEntries.map(e => <EntryCard key={e.id} entry={e} settings={settings} expanded={expandedId===e.id} onToggle={() => setExpandedId(expandedId===e.id?null:e.id)} onDelete={() => removeEntry(e.id)} />)}
+      {snackEntries.map(e => <EntryCard key={e.id} entry={e} settings={settings} expanded={expandedId===e.id} onToggle={() => setExpandedId(expandedId===e.id?null:e.id)} onDelete={() => removeEntry(e.id)} onUpdate={(u) => updateEntry(e.id, u)} />)}
       <button className="btn btn-secondary btn-sm" style={{width:'100%'}} onClick={() => setModal('snack')}>+ Add Snack</button>
 
       {date === today() && pastDates.length > 0 && (
@@ -777,17 +778,55 @@ function LogScreen({ log, setLog, ingredients, meals, settings }) {
   );
 }
 
-function EntryCard({ entry, settings, expanded, onToggle, onDelete }) {
+function EntryCard({ entry, settings, expanded, onToggle, onDelete, onUpdate }) {
+  const [editing, setEditing] = useState(false);
+  const [editVal, setEditVal] = useState('');
   const targetRatio = settings.calories>0 ? (settings.protein*4)/settings.calories : 0;
   const entryRatio = entry.calories>0 ? (entry.protein*4)/entry.calories : 0;
   const pct = targetRatio>0 ? entryRatio/targetRatio : 1;
   const dotCol = pct>=1?'var(--green)':pct>=0.7?'var(--amber)':'var(--red)';
+
+  const startEdit = () => {
+    if (entry.isComposite) return; // composites aren't editable (multiple sub-ingredients)
+    const current = entry.serving ? String(entry.serving) : entry.servingDisplay ? entry.servingDisplay.split(' ')[0] : '';
+    setEditVal(current);
+    setEditing(true);
+  };
+
+  const saveEdit = () => {
+    const newAmt = parseFloat(editVal);
+    if (!newAmt || isNaN(newAmt) || newAmt <= 0) { setEditing(false); return; }
+    if (entry.caloriesPer100 !== undefined) {
+      // New-style entry with source data — recalculate from per-100 values
+      const f = newAmt / 100;
+      onUpdate({ serving: newAmt, servingDisplay: `${editVal} ${entry.servingUnit || 'g'}`, calories: entry.caloriesPer100 * f, protein: entry.proteinPer100 * f });
+    } else {
+      // Legacy entry — scale proportionally
+      const oldAmt = entry.serving || parseFloat(entry.servingDisplay);
+      if (oldAmt && oldAmt > 0) {
+        const ratio = newAmt / oldAmt;
+        const unit = entry.servingUnit || (entry.servingDisplay ? entry.servingDisplay.split(' ').slice(1).join(' ') : 'g');
+        onUpdate({ serving: newAmt, servingDisplay: `${editVal} ${unit}`, calories: entry.calories * ratio, protein: entry.protein * ratio });
+      }
+    }
+    setEditing(false);
+  };
+
   return (
     <div className="log-entry">
       <div className="log-entry-main">
-        <div style={{flex:1}}>
+        <div style={{flex:1, cursor: entry.isComposite ? 'default' : 'pointer'}} onClick={!editing && !entry.isComposite ? startEdit : undefined}>
           <div className="log-entry-name"><span style={{display:'inline-block',width:8,height:8,borderRadius:'50%',background:dotCol,marginRight:6,verticalAlign:'middle'}} />{entry.name}</div>
-          {entry.servingDisplay && <div style={{fontSize:11,color:'var(--text-muted)'}}>{entry.servingDisplay}</div>}
+          {editing ? (
+            <div style={{display:'flex',gap:6,alignItems:'center',marginTop:4}}>
+              <input className="input" type="text" inputMode="decimal" value={editVal} {...numInput(setEditVal)} style={{width:70,padding:'4px 8px',fontSize:12}} autoFocus onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditing(false); }} />
+              <span style={{fontSize:11,color:'var(--text-muted)'}}>{entry.servingUnit || (entry.servingDisplay ? entry.servingDisplay.split(' ').slice(1).join(' ') : 'g')}</span>
+              <button className="btn btn-primary" style={{padding:'3px 10px',fontSize:11}} onClick={saveEdit}>Save</button>
+              <button className="btn-ghost" style={{padding:'3px 6px',fontSize:11}} onClick={() => setEditing(false)}>Cancel</button>
+            </div>
+          ) : (
+            entry.servingDisplay && <div style={{fontSize:11,color:'var(--text-muted)'}}>{entry.servingDisplay}{!entry.isComposite && ' ✎'}</div>
+          )}
         </div>
         <div className="log-entry-macros">
           <div style={{color:'var(--amber)'}}>{Math.round(entry.calories)} kcal</div>
@@ -827,7 +866,7 @@ function LogModal({ category, ingredients, meals, settings, onAdd, onClose }) {
       if (!d) return null;
       const grams = parseFloat(ing.serving);
       const f = grams / 100;
-      return { name: displayName(d), servingDisplay: `${ing.serving} ${ing.unit}`, calories: d.caloriesPer100 * f, protein: d.proteinPer100 * f };
+      return { name: displayName(d), servingDisplay: `${ing.serving} ${ing.unit}`, serving: grams, servingUnit: ing.unit, caloriesPer100: d.caloriesPer100, proteinPer100: d.proteinPer100, calories: d.caloriesPer100 * f, protein: d.proteinPer100 * f };
     }).filter(Boolean);
     const cal = ings.reduce((a,i)=>a+i.calories,0);
     const pro = ings.reduce((a,i)=>a+i.protein,0);
@@ -845,7 +884,7 @@ function LogModal({ category, ingredients, meals, settings, onAdd, onClose }) {
     if (!qty || isNaN(qty)) return;
     const grams = parseFloat(qty);
     const f = grams / 100;
-    onAdd({ name: displayName(selected), category, calories: selected.caloriesPer100 * f, protein: selected.proteinPer100 * f, isComposite: false, servingDisplay: `${qty} ${unit}` });
+    onAdd({ name: displayName(selected), category, calories: selected.caloriesPer100 * f, protein: selected.proteinPer100 * f, isComposite: false, servingDisplay: `${qty} ${unit}`, serving: parseFloat(qty), servingUnit: unit, caloriesPer100: selected.caloriesPer100, proteinPer100: selected.proteinPer100 });
   };
 
   const preview = (() => {
@@ -941,8 +980,9 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals, settings,
     const ings = m.ingredients.map(ing => {
       const d = ingredients.find(i => i.id === ing.id);
       if (!d) return null;
-      const f = parseFloat(ing.serving) / 100;
-      return { name: displayName(d), servingDisplay: `${ing.serving} ${ing.unit}`, calories: d.caloriesPer100 * f, protein: d.proteinPer100 * f };
+      const grams = parseFloat(ing.serving);
+      const f = grams / 100;
+      return { name: displayName(d), servingDisplay: `${ing.serving} ${ing.unit}`, serving: grams, servingUnit: ing.unit, caloriesPer100: d.caloriesPer100, proteinPer100: d.proteinPer100, calories: d.caloriesPer100 * f, protein: d.proteinPer100 * f };
     }).filter(Boolean);
     const cal = ings.reduce((a, i) => a + i.calories, 0);
     const pro = ings.reduce((a, i) => a + i.protein, 0);
@@ -953,7 +993,7 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals, settings,
     const amt = parseFloat(qlAmount);
     if (!amt || isNaN(amt)) return;
     const f = amt / 100;
-    logToToday({ name: displayName(ing), category: qlCategory, calories: ing.caloriesPer100 * f, protein: ing.proteinPer100 * f, isComposite: false, servingDisplay: `${qlAmount} ${qlUnit}` });
+    logToToday({ name: displayName(ing), category: qlCategory, calories: ing.caloriesPer100 * f, protein: ing.proteinPer100 * f, isComposite: false, servingDisplay: `${qlAmount} ${qlUnit}`, serving: amt, servingUnit: qlUnit, caloriesPer100: ing.caloriesPer100, proteinPer100: ing.proteinPer100 });
   };
 
   return (
