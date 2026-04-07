@@ -1576,7 +1576,7 @@ function GoalCalculator({ latestWeight, onApply }) {
   );
 }
 
-function SettingsScreen({ settings, setSettings, theme, setTheme, user, weights }) {
+function SettingsScreen({ settings, setSettings, theme, setTheme, user, weights, ingredients, setIngredients, meals, setMeals, log, setLog, setWeights }) {
   const [cal, setCal] = useState(String(settings.calories));
   const [pro, setPro] = useState(String(settings.protein));
   const [authMode, setAuthMode] = useState(null); // null | 'email'
@@ -1586,6 +1586,7 @@ function SettingsScreen({ settings, setSettings, theme, setTheme, user, weights 
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [clearConfirm, setClearConfirm] = useState(null); // null or { code, input, done }
 
   const signInGoogle = async () => {
     if (!auth || !googleProvider || authLoading) return;
@@ -1732,6 +1733,81 @@ function SettingsScreen({ settings, setSettings, theme, setTheme, user, weights 
             <button className="btn btn-secondary btn-sm" onClick={signOut}>Sign out</button>
           </div>
           <p style={{fontSize:12,color:'var(--text-dim)',marginTop:10}}>Your data syncs automatically across devices.</p>
+        </div>
+      )}
+
+      <div className="section-label" style={{marginTop:32}}>Data</div>
+      <div className="card">
+        <p style={{fontSize:12,color:'var(--text-dim)',marginBottom:12}}>Export your data as a JSON file, or import a previous backup.</p>
+        <div style={{display:'flex',gap:8}}>
+          <button className="btn btn-secondary" style={{flex:1}} onClick={() => {
+            const data = { ing_v1: ingredients, meals_v1: meals, log_v1: log, weights_v1: weights, settings_v1: settings, theme_v1: theme };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `fuel-backup-${new Date().toISOString().replace(/[:.]/g,'-').slice(0,19)}.json`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+          }}>Export</button>
+          <button className="btn btn-secondary" style={{flex:1}} onClick={() => document.getElementById('fuel-import').click()}>Import</button>
+        </div>
+        <input id="fuel-import" type="file" accept=".json" style={{display:'none'}} onChange={e => {
+          const file = e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            try {
+              const data = JSON.parse(reader.result);
+              const VALID_KEYS = ['ing_v1','meals_v1','log_v1','weights_v1','settings_v1','theme_v1'];
+              if (!VALID_KEYS.some(k => k in data)) { alert('Invalid backup file.'); return; }
+              if (data.ing_v1) setIngredients(data.ing_v1);
+              if (data.meals_v1) setMeals(data.meals_v1);
+              if (data.log_v1) setLog(data.log_v1);
+              if (data.weights_v1) setWeights(data.weights_v1);
+              if (data.settings_v1) setSettings(data.settings_v1);
+              if (data.theme_v1) setTheme(data.theme_v1);
+              alert('Data imported successfully.');
+            } catch { alert('Failed to read file.'); }
+          };
+          reader.readAsText(file);
+          e.target.value = '';
+        }} />
+        <button className="btn btn-danger" style={{width:'100%',marginTop:10}} onClick={() => {
+          const code = Math.random().toString(36).slice(2,6).toUpperCase();
+          setClearConfirm({ code, input: '' });
+        }}>Clear All Data</button>
+      </div>
+
+      {clearConfirm && (
+        <div className="modal-backdrop" onClick={() => setClearConfirm(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setClearConfirm(null)}>✕</button>
+            <div className="modal-title">Clear all data</div>
+            <p style={{fontSize:13,color:'var(--text-dim)',lineHeight:1.6,marginBottom:6}}>
+              This will permanently delete all your ingredients, meals, log entries, weight history, and settings.
+            </p>
+            <p style={{fontSize:13,color:'var(--amber)',lineHeight:1.6,marginBottom:16}}>
+              Export your data first if you want to keep a backup.
+            </p>
+            <p style={{fontSize:13,color:'var(--text-dim)',marginBottom:8}}>
+              Type <strong style={{color:'var(--text)',fontFamily:'var(--mono)'}}>{clearConfirm.code}</strong> to confirm:
+            </p>
+            <input className="input" value={clearConfirm.input} onChange={e => setClearConfirm({...clearConfirm, input: e.target.value.toUpperCase()})} placeholder={clearConfirm.code} style={{marginBottom:14}} />
+            {clearConfirm.done ? (
+              <p style={{textAlign:'center',color:'var(--green)',fontSize:14,fontWeight:600,padding:'12px 0'}}>All data cleared.</p>
+            ) : (
+              <button className="btn btn-danger" style={{width:'100%',opacity:clearConfirm.input===clearConfirm.code?1:0.4}} disabled={clearConfirm.input!==clearConfirm.code} onClick={() => {
+                setIngredients([]);
+                setMeals([]);
+                setLog({});
+                setWeights([]);
+                setSettings({calories:1200,protein:100,weightMode:'lose',weightAmount:null,weightTime:null,weightTimeUnit:'months',weightDisplayUnit:'kg'});
+                setTheme('dark');
+                setClearConfirm(c => ({...c, done: true}));
+                setTimeout(() => setClearConfirm(null), 1500);
+              }}>Clear Everything</button>
+            )}
+          </div>
         </div>
       )}
 
