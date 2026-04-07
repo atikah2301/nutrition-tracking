@@ -966,6 +966,7 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals, settings,
   const [catFilter, setCatFilter] = useState('all');
   const [ratioFilter, setRatioFilter] = useState('all');
   const [showRatioInfo, setShowRatioInfo] = useState(false);
+  const [libSearch, setLibSearch] = useState('');
   const [modal, setModal] = useState(null);
   const [editing, setEditing] = useState(null);
   const [quickLog, setQuickLog] = useState(null);
@@ -1011,8 +1012,8 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals, settings,
       <div style={{padding:'20px 16px 0', flexShrink:0}}>
         <div className="screen-title">Library</div>
         <div className="chips">
-          <button className={`chip ${view==='ingredients'?'selected':''}`} onClick={() => { setView('ingredients'); setCatFilter('all'); }}>Ingredients</button>
-          <button className={`chip ${view==='meals'?'selected':''}`} onClick={() => setView('meals')}>Composites</button>
+          <button className={`chip ${view==='ingredients'?'selected':''}`} onClick={() => { setView('ingredients'); setCatFilter('all'); setLibSearch(''); }}>Ingredients</button>
+          <button className={`chip ${view==='meals'?'selected':''}`} onClick={() => { setView('meals'); setLibSearch(''); }}>Composites</button>
         </div>
         {(() => { const hasFilters = catFilter !== 'all' || ratioFilter !== 'all'; return (
           <div className="chips" style={{marginTop:8,gap:6,alignItems:'center'}}>
@@ -1061,13 +1062,14 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals, settings,
             </div>
           </div>
         )}
+        <input className="input" placeholder="Search..." value={libSearch} onChange={e => setLibSearch(e.target.value)} style={{marginTop:10}} />
       </div>
 
       <div style={{flex:1, overflowY:'auto', padding:'0 16px'}}>
         {view === 'ingredients' && <>
           {ingredients.length===0 && <p className="empty">No ingredients yet.<br/>Add foods with their per-100g nutrition values.</p>}
-          {ingredients.length>0 && ingredients.filter(ing => ratioFilter === 'all' || getRatioBand(ing.caloriesPer100, ing.proteinPer100) === ratioFilter).length === 0 && <p className="empty">No ingredients match this filter.</p>}
-          {ingredients.filter(ing => ratioFilter === 'all' || getRatioBand(ing.caloriesPer100, ing.proteinPer100) === ratioFilter).map(ing => { const band = getRatioBand(ing.caloriesPer100, ing.proteinPer100); const dotCol = band==='green'?'var(--green)':band==='amber'?'var(--amber)':'var(--red)'; return (
+          {ingredients.length>0 && ingredients.filter(ing => matchesSearch(ing, libSearch) && (ratioFilter === 'all' || getRatioBand(ing.caloriesPer100, ing.proteinPer100) === ratioFilter)).length === 0 && <p className="empty">No ingredients match this filter.</p>}
+          {ingredients.filter(ing => matchesSearch(ing, libSearch) && (ratioFilter === 'all' || getRatioBand(ing.caloriesPer100, ing.proteinPer100) === ratioFilter)).map(ing => { const band = getRatioBand(ing.caloriesPer100, ing.proteinPer100); const dotCol = band==='green'?'var(--green)':band==='amber'?'var(--amber)':'var(--red)'; return (
             <div key={ing.id} className="lib-item">
               <div className="lib-item-info">
                 <div className="lib-item-name"><span style={{display:'inline-block',width:8,height:8,borderRadius:'50%',background:dotCol,marginRight:6,verticalAlign:'middle'}} />{displayName(ing)}</div>
@@ -1084,8 +1086,8 @@ function LibraryScreen({ ingredients, setIngredients, meals, setMeals, settings,
 
         {view === 'meals' && <>
           {meals.length===0 && <p className="empty">No composites yet.<br/>Combine ingredients into saved combos like "Spinach & Egg Breakfast" or "Protein Shake".</p>}
-          {meals.length>0 && meals.filter(m => (catFilter === 'all' || m.category === catFilter)).filter(m => { if (ratioFilter === 'all') return true; const t = m.ingredients.reduce((a,ing) => { const d = ingredients.find(x=>x.id===ing.id); if(!d) return a; const f = parseFloat(ing.serving)/100; return { cal: a.cal+d.caloriesPer100*f, pro: a.pro+d.proteinPer100*f }; }, {cal:0,pro:0}); return getRatioBand(t.cal, t.pro) === ratioFilter; }).length === 0 && (catFilter !== 'all' || ratioFilter !== 'all') && <p className="empty">No composites match these filters.</p>}
-          {meals.filter(m => (catFilter === 'all' || m.category === catFilter)).filter(m => { if (ratioFilter === 'all') return true; const t = m.ingredients.reduce((a,ing) => { const d = ingredients.find(x=>x.id===ing.id); if(!d) return a; const f = parseFloat(ing.serving)/100; return { cal: a.cal+d.caloriesPer100*f, pro: a.pro+d.proteinPer100*f }; }, {cal:0,pro:0}); return getRatioBand(t.cal, t.pro) === ratioFilter; }).map(m => { const t = m.ingredients.reduce((a,ing) => { const d = ingredients.find(x=>x.id===ing.id); if(!d) return a; const f = parseFloat(ing.serving)/100; return { cal: a.cal+d.caloriesPer100*f, pro: a.pro+d.proteinPer100*f }; }, {cal:0,pro:0}); const band = getRatioBand(t.cal, t.pro); const dotCol = band==='green'?'var(--green)':band==='amber'?'var(--amber)':'var(--red)'; return (
+          {meals.length>0 && meals.filter(m => (!libSearch || m.name.toLowerCase().includes(libSearch.toLowerCase())) && (catFilter === 'all' || m.category === catFilter)).filter(m => { if (ratioFilter === 'all') return true; const t = m.ingredients.reduce((a,ing) => { const d = ingredients.find(x=>x.id===ing.id); if(!d) return a; const f = parseFloat(ing.serving)/100; return { cal: a.cal+d.caloriesPer100*f, pro: a.pro+d.proteinPer100*f }; }, {cal:0,pro:0}); return getRatioBand(t.cal, t.pro) === ratioFilter; }).length === 0 && (catFilter !== 'all' || ratioFilter !== 'all' || libSearch) && <p className="empty">No composites match these filters.</p>}
+          {meals.filter(m => (!libSearch || m.name.toLowerCase().includes(libSearch.toLowerCase())) && (catFilter === 'all' || m.category === catFilter)).filter(m => { if (ratioFilter === 'all') return true; const t = m.ingredients.reduce((a,ing) => { const d = ingredients.find(x=>x.id===ing.id); if(!d) return a; const f = parseFloat(ing.serving)/100; return { cal: a.cal+d.caloriesPer100*f, pro: a.pro+d.proteinPer100*f }; }, {cal:0,pro:0}); return getRatioBand(t.cal, t.pro) === ratioFilter; }).map(m => { const t = m.ingredients.reduce((a,ing) => { const d = ingredients.find(x=>x.id===ing.id); if(!d) return a; const f = parseFloat(ing.serving)/100; return { cal: a.cal+d.caloriesPer100*f, pro: a.pro+d.proteinPer100*f }; }, {cal:0,pro:0}); const band = getRatioBand(t.cal, t.pro); const dotCol = band==='green'?'var(--green)':band==='amber'?'var(--amber)':'var(--red)'; return (
             <div key={m.id} className="lib-item" style={{flexDirection:'column',alignItems:'flex-start',gap:8}}>
               <div style={{display:'flex',width:'100%',alignItems:'center',gap:10}}>
                 <div className="lib-item-info">
