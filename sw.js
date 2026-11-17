@@ -1,8 +1,11 @@
-const CACHE_VERSION = 'fuel-v1';
+// __CACHE_VERSION__ is substituted with the commit SHA by the deploy workflow
+const CACHE_VERSION = 'fuel-__CACHE_VERSION__';
 
 const PRECACHE_URLS = [
   './',
   'index.html',
+  'icons/icon-192.png',
+  'icons/icon-512.png',
   'https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap',
   'https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js',
   'https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js',
