@@ -267,6 +267,11 @@ function ConfirmDelete({ onConfirm, label, className, style }) {
   return <button className={className} style={{...style, ...(confirming ? {color:'var(--red)',fontWeight:600} : {})}} onClick={handleClick}>{confirming ? (label||'Delete?') : '✕'}</button>;
 }
 
+// __COMMIT_SHA__ and __DEPLOY_TIME__ are substituted by the deploy workflow on
+// every push. Locally they stay as placeholders and show as a dev build.
+const COMMIT_SHA = '__COMMIT_SHA__';
+const DEPLOY_TIME = '__DEPLOY_TIME__';
+const APP_VERSION = COMMIT_SHA.startsWith('__') ? 'dev build' : `${COMMIT_SHA.slice(0, 7)} · ${DEPLOY_TIME}`;
 const DEFAULT_SETTINGS = { calories: 1200, protein: 100, weightMode: 'lose', weightAmount: null, weightTime: null, weightTimeUnit: 'months', weightDisplayUnit: 'kg' };
 
 function App() {
@@ -1821,6 +1826,7 @@ function SettingsScreen({ settings, setSettings, theme, setTheme, user, weights,
           Ingredients use per-100g values for easy food label comparison.<br/>
           Protein at ~1g per lb bodyweight is a solid target for muscle retention in a calorie deficit.
         </p>
+        <p style={{fontSize:11,color:'var(--text-muted)',marginTop:10,fontFamily:"'DM Mono', monospace"}}>Version {APP_VERSION}</p>
       </div>
     </div>
   );
